@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AIssistant</title>
   <link rel="icon" type="image/svg+xml" href="assets/aissistant-favicon.svg">
-  <link rel="stylesheet" href="styles.css?v=visual-cleanup-1">
+  <link rel="stylesheet" href="styles.css?v=topbar-search-1">
 </head>
 <body>
   <div class="app-shell">
@@ -22,6 +22,12 @@
         <div class="brand-slogan-row">
           <p class="brand-slogan">Add notes, Review dashboard, and Approve prepared items</p>
         </div>
+      </div>
+      <div class="topbar-search" role="search" aria-label="Global search">
+        <label class="sr-only" for="globalSearchInput">Search dashboard, transcript, Notion tasks, and meetings</label>
+        <input id="globalSearchInput" type="search" placeholder="Search transcript, dashboard, tasks, meetings..." autocomplete="off">
+        <button class="secondary-button compact-button topbar-clear-button" id="clearSearchButton" type="button" disabled>Clear</button>
+        <p class="search-status" id="searchStatus" role="status" hidden>Search across the meeting workspace.</p>
       </div>
       <nav class="story-nav" aria-label="Workspace status" hidden>
         <a class="story-chip" href="#liveMode">
@@ -44,19 +50,6 @@
       <button class="secondary-button compact-button theme-toggle-button" id="themeToggleButton" type="button" aria-pressed="false">Dark mode</button>
       <div class="status-pill" id="analysisStatus" hidden>Ready</div>
     </header>
-
-    <section class="global-search-panel search-compact" aria-labelledby="globalSearchHeading">
-      <div hidden>
-        <p class="eyebrow">Find meeting details</p>
-        <h2 id="globalSearchHeading">Global search</h2>
-      </div>
-      <div class="global-search-box">
-        <label class="sr-only" for="globalSearchInput">Search dashboard, transcript, Notion tasks, and meetings</label>
-        <input id="globalSearchInput" type="search" placeholder="Search transcript, dashboard, tasks, meetings..." autocomplete="off">
-        <button class="secondary-button" id="clearSearchButton" type="button" disabled>Clear</button>
-      </div>
-      <p class="search-status" id="searchStatus" role="status" hidden>Search across the meeting workspace.</p>
-    </section>
 
     <section class="realtime-dashboard" aria-labelledby="dashboardHeading" data-search-scope>
       <div class="dashboard-header">
@@ -617,6 +610,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=visual-cleanup-1"></script>
+  <script src="app.js?v=topbar-search-1"></script>
 </body>
 </html>
