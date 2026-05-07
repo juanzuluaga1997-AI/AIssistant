@@ -53,6 +53,17 @@ npm start
 http://localhost:3000
 ```
 
+## Vercel Deployment
+
+The project is prepared for Vercel Git integration from GitHub. Use `VERCEL_DEPLOYMENT.md` before importing the repository into Vercel.
+
+Important:
+
+- Keep `.env` local only.
+- Add production secrets in Vercel Project Settings.
+- Use `CALENDAR_PROVIDER=apps_script` unless the app is intentionally moved to Google OAuth.
+- The local Windows transcription fallback is disabled on Vercel; browser speech recognition can still work over HTTPS.
+
 ## Google Apps Script Calendar Bridge
 
 This app uses a free Google Apps Script bridge for Calendar scheduling. The browser never calls Google Apps Script directly. The flow is:

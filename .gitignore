@@ -9,6 +9,7 @@ node_modules/
 # Local browser / QA profiles
 .chrome*/
 .edge*/
+.vercel/
 
 # Local backups and generated artifacts
 backups/

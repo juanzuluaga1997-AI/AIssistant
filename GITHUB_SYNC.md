@@ -10,6 +10,7 @@ Never commit:
 - `node_modules/`
 - `.chrome*/`
 - `.edge*/`
+- `.vercel/`
 - `backups/`
 - local ZIP/upload folders
 
@@ -56,3 +57,7 @@ Or run the protected sync script:
 The script stages only the known app files and never stages `.env`, `node_modules`, browser QA profiles, backups, or local documents.
 
 Do not use destructive Git commands such as `git reset --hard` unless the app has been backed up and the exact reason is clear.
+
+## Vercel Sync
+
+After the GitHub repository is imported into Vercel, pushes to `main` can trigger new Vercel deployments automatically. Keep Vercel secrets in Project Settings, not in `vercel.json` or `.env`.

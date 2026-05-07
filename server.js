@@ -14,6 +14,7 @@ dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
+const IS_VERCEL = process.env.VERCEL === "1";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/auth/google/callback";
@@ -411,6 +412,14 @@ app.post("/api/transcribe-local", async (req, res) => {
   const audioBase64 = typeof req.body.audioBase64 === "string" ? req.body.audioBase64 : "";
   const culture = "en-US";
 
+  if (IS_VERCEL) {
+    res.status(501).json({
+      ok: false,
+      message: "Local Windows transcription fallback is unavailable on Vercel. Browser speech recognition can still be used from HTTPS."
+    });
+    return;
+  }
+
   if (!audioBase64) {
     res.status(400).json({
       ok: false,
@@ -622,19 +631,23 @@ app.get("/app.js", (req, res) => {
   res.sendFile(path.join(__dirname, "app.js"));
 });
 
-app.listen(PORT, () => {
-  console.log(`AIssistant running at http://localhost:${PORT}`);
-  if (isAppsScriptCalendarProvider()) {
-    if (!hasCalendarBridgeConfig()) {
-      console.log("Calendar Apps Script bridge is not configured. Add CALENDAR_BRIDGE_URL and CALENDAR_BRIDGE_SECRET to .env.");
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`AIssistant running at http://localhost:${PORT}`);
+    if (isAppsScriptCalendarProvider()) {
+      if (!hasCalendarBridgeConfig()) {
+        console.log("Calendar Apps Script bridge is not configured. Add CALENDAR_BRIDGE_URL and CALENDAR_BRIDGE_SECRET to .env.");
+      }
+    } else if (!hasGoogleConfig()) {
+      console.log("Google OAuth is not fully configured. Copy .env.example to .env and fill in the values.");
     }
-  } else if (!hasGoogleConfig()) {
-    console.log("Google OAuth is not fully configured. Copy .env.example to .env and fill in the values.");
-  }
-  if (!hasNotionConfig()) {
-    console.log("Notion export is not configured. Add NOTION_TOKEN and NOTION_DATA_SOURCE_ID to .env to enable it.");
-  }
-});
+    if (!hasNotionConfig()) {
+      console.log("Notion export is not configured. Add NOTION_TOKEN and NOTION_DATA_SOURCE_ID to .env to enable it.");
+    }
+  });
+}
+
+module.exports = app;
 
 function isAppsScriptCalendarProvider() {
   return CALENDAR_PROVIDER === "apps_script";

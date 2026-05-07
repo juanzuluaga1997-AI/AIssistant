@@ -25,6 +25,8 @@ $TrackedPaths = @(
   "AGENTS.md",
   "GITHUB_SYNC.md",
   "README.md",
+  "VERCEL_DEPLOYMENT.md",
+  "api",
   "app.js",
   "assets",
   "google-apps-script-calendar-bridge.gs",
@@ -34,6 +36,7 @@ $TrackedPaths = @(
   "scripts/sync-github.ps1",
   "server.js",
   "styles.css",
+  "vercel.json",
   "work-email-knowledge-base.js"
 )
 
