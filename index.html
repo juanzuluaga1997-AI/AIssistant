@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AIssistant</title>
   <link rel="icon" type="image/svg+xml" href="assets/aissistant-favicon.svg">
-  <link rel="stylesheet" href="styles.css?v=brand-system-5">
+  <link rel="stylesheet" href="styles.css?v=report-actions-1">
 </head>
 <body>
   <div class="app-shell">
@@ -41,6 +41,7 @@
           <span>Meetings</span>
         </a>
       </nav>
+      <button class="secondary-button compact-button theme-toggle-button" id="themeToggleButton" type="button" aria-pressed="false">Dark mode</button>
       <div class="status-pill" id="analysisStatus" hidden>Ready</div>
     </header>
 
@@ -50,8 +51,8 @@
         <h2 id="globalSearchHeading">Global search</h2>
       </div>
       <div class="global-search-box">
-        <label class="sr-only" for="globalSearchInput">Search dashboard, transcript, emails, Notion tasks, and meetings</label>
-        <input id="globalSearchInput" type="search" placeholder="Search transcript, dashboard, emails, tasks, meetings..." autocomplete="off">
+        <label class="sr-only" for="globalSearchInput">Search dashboard, transcript, Notion tasks, and meetings</label>
+        <input id="globalSearchInput" type="search" placeholder="Search transcript, dashboard, tasks, meetings..." autocomplete="off">
         <button class="secondary-button" id="clearSearchButton" type="button" disabled>Clear</button>
       </div>
       <p class="search-status" id="searchStatus" role="status">Search across the meeting workspace.</p>
@@ -64,6 +65,14 @@
           <h2 id="dashboardHeading">Meeting dashboard</h2>
           <p>Only meeting intelligence appears here.</p>
         </div>
+        <details class="dashboard-report-menu">
+          <summary class="secondary-button compact-button dashboard-report-button">Export report</summary>
+          <div class="dashboard-report-options" role="menu" aria-label="Dashboard report export options">
+            <button class="secondary-button compact-button" id="dashboardReportPdfButton" type="button">Save PDF</button>
+            <button class="secondary-button compact-button" id="dashboardReportEmailButton" type="button">Send by email</button>
+            <button class="secondary-button compact-button" id="dashboardReportHtmlButton" type="button">Download HTML</button>
+          </div>
+        </details>
       </div>
 
       <article class="dashboard-card dashboard-concept-card" aria-labelledby="dashboardConceptHeading">
@@ -98,15 +107,9 @@
           </ul>
         </article>
         <article class="dashboard-card topics-card">
-          <h3>Relevant</h3>
+          <h3>Important Points</h3>
           <ul id="dashboardRelevant" class="result-list empty-list">
-            <li>No relevant topics detected yet.</li>
-          </ul>
-        </article>
-        <article class="dashboard-card">
-          <h3>Key Points</h3>
-          <ul id="dashboardKeyPoints" class="result-list empty-list">
-            <li>No key points detected yet.</li>
+            <li>No important points detected yet.</li>
           </ul>
         </article>
         <article class="dashboard-card">
@@ -194,7 +197,7 @@
         </div>
       </section>
 
-      <section class="output-panel approvals-panel" aria-label="Prepared approvals">
+      <section class="output-panel approvals-panel email-section-hidden" aria-label="Prepared approvals">
         <div class="panel-header compact-panel-header" hidden>
           <div>
             <h2 id="preparedHeading">Prepared approvals</h2>
@@ -222,7 +225,7 @@
           </section>
         </div>
 
-        <section class="approval-section" id="emailsSection" aria-labelledby="emailsHeading" data-search-scope>
+        <section class="approval-section" id="emailsSection" aria-labelledby="emailsHeading" hidden data-disabled-section="emails">
           <div class="section-title-row">
             <div>
               <h3 id="emailsHeading">Emails</h3>
@@ -614,6 +617,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=p0-stabilization-1"></script>
+  <script src="app.js?v=report-actions-1"></script>
 </body>
 </html>

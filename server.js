@@ -55,9 +55,81 @@ const GEMINI_DASHBOARD_TIMEOUT_MS = normalizeGeminiEmailTimeout(
 const GEMINI_DASHBOARD_LIMITS = {
   decisions: 5,
   risks: 5,
-  relevant: 6,
-  keyPoints: 6,
+  importantPoints: 8,
+  relevant: 8,
+  keyPoints: 8,
   conclusions: 3
+};
+const GEMINI_DASHBOARD_CATEGORY_CUES = {
+  decisions: [
+    "decision",
+    "decided",
+    "agreed",
+    "approved",
+    "confirmed",
+    "chosen",
+    "selected",
+    "resolved",
+    "committed",
+    "signed off",
+    "green light",
+    "go ahead",
+    "final call"
+  ],
+  risks: [
+    "risk",
+    "danger",
+    "dangerous",
+    "blocker",
+    "blocked",
+    "issue",
+    "problem",
+    "concern",
+    "obstacle",
+    "dependency",
+    "delay",
+    "stuck",
+    "unclear",
+    "missing",
+    "limitation",
+    "challenge",
+    "bottleneck",
+    "warning"
+  ],
+  importantPoints: [
+    "important",
+    "key point",
+    "main point",
+    "relevant",
+    "topic",
+    "highlight",
+    "context",
+    "update",
+    "detail",
+    "priority",
+    "focus",
+    "remember",
+    "insight",
+    "observation",
+    "consideration",
+    "action item",
+    "next action",
+    "follow-up"
+  ],
+  conclusions: [
+    "conclusion",
+    "takeaway",
+    "summary",
+    "outcome",
+    "result",
+    "wrap-up",
+    "final thought",
+    "end state",
+    "what we learned",
+    "next step",
+    "overall",
+    "in short"
+  ]
 };
 const GEMINI_EMAIL_TEMPLATE_TYPES = [
   "meeting_summary",
@@ -1227,11 +1299,17 @@ function normalizeGeminiEmailInterpretationInput(body) {
 
 function normalizeGeminiInterpretationDashboard(value) {
   const dashboard = value && typeof value === "object" ? value : {};
+  const importantPoints = normalizeGeminiList([
+    ...normalizeGeminiList(dashboard.importantPoints),
+    ...normalizeGeminiList(dashboard.relevant || dashboard.topics),
+    ...normalizeGeminiList(dashboard.keyPoints)
+  ]).slice(0, 8);
   return {
     decisions: normalizeGeminiList(dashboard.decisions).slice(0, 8),
     risksOrBlockers: normalizeGeminiList(dashboard.risksOrBlockers || dashboard.risks).slice(0, 8),
-    relevant: normalizeGeminiList(dashboard.relevant || dashboard.topics).slice(0, 8),
-    keyPoints: normalizeGeminiList(dashboard.keyPoints).slice(0, 8),
+    importantPoints,
+    relevant: importantPoints,
+    keyPoints: importantPoints,
     conclusions: normalizeGeminiList(dashboard.conclusions).slice(0, 8)
   };
 }
@@ -1265,9 +1343,15 @@ function normalizeGeminiDashboardInput(body) {
 
 function normalizeGeminiDashboardBuckets(value) {
   const dashboard = value && typeof value === "object" ? value : {};
+  const importantPoints = [
+    ...normalizeGeminiDashboardItems(dashboard.importantPoints, "importantPoints"),
+    ...normalizeGeminiDashboardItems(dashboard.relevant || dashboard.topics, "importantPoints"),
+    ...normalizeGeminiDashboardItems(dashboard.keyPoints, "importantPoints")
+  ];
   return {
     decisions: normalizeGeminiDashboardItems(dashboard.decisions, "decisions"),
     risks: normalizeGeminiDashboardItems(dashboard.risks || dashboard.risksOrBlockers, "risks"),
+    importantPoints: normalizeGeminiDashboardItems(importantPoints, "importantPoints"),
     relevant: normalizeGeminiDashboardItems(dashboard.relevant || dashboard.topics, "relevant"),
     keyPoints: normalizeGeminiDashboardItems(dashboard.keyPoints, "keyPoints"),
     conclusions: normalizeGeminiDashboardItems(dashboard.conclusions, "conclusions")
@@ -1276,11 +1360,18 @@ function normalizeGeminiDashboardBuckets(value) {
 
 function normalizeGeminiDashboardMeetingIntelligence(value) {
   const context = value && typeof value === "object" ? value : {};
+  const importantPoints = [
+    ...normalizeGeminiDashboardItems(context.importantPoints, "importantPoints"),
+    ...normalizeGeminiDashboardItems(context.relevant || context.relevantPoints, "importantPoints"),
+    ...normalizeGeminiDashboardItems(context.keyPoints, "importantPoints"),
+    ...normalizeGeminiDashboardItems(context.actionItems || context.tasks, "importantPoints")
+  ];
   return {
     summary: truncateText(normalizeBusinessEnglishText(context.summary || ""), 700),
     decisions: normalizeGeminiDashboardItems(context.decisions, "decisions"),
     risks: normalizeGeminiDashboardItems(context.risks || context.blockers, "risks"),
     actionItems: normalizeGeminiDashboardItems(context.actionItems || context.tasks, "keyPoints"),
+    importantPoints: normalizeGeminiDashboardItems(importantPoints, "importantPoints"),
     relevant: normalizeGeminiDashboardItems(context.relevant || context.relevantPoints, "relevant"),
     keyPoints: normalizeGeminiDashboardItems(context.keyPoints, "keyPoints"),
     conclusions: normalizeGeminiDashboardItems(context.conclusions, "conclusions")
@@ -1308,6 +1399,7 @@ function hasGeminiDashboardBucketValue(value) {
     value.summary ||
     (value.decisions || []).length ||
     (value.risks || []).length ||
+    (value.importantPoints || []).length ||
     (value.relevant || []).length ||
     (value.keyPoints || []).length ||
     (value.conclusions || []).length ||
@@ -1647,14 +1739,18 @@ function buildGeminiDashboardPrompt(input) {
     "- Do not invent names, dates, approvals, decisions, risks, or conclusions.",
     "- If no strong item exists for a category, return an empty array for that category.",
     "- Keep every bullet short, clear, professional, and supported by the context.",
-    "- Maximum items: decisions 5, risks 5, relevant 6, keyPoints 6, conclusions 3.",
+    "- Maximum items: decisions 5, risks 5, importantPoints 8, conclusions 3.",
+    "- Use the language cues below to classify intent, but never add an item only because a cue word appears.",
+    "- A cue word must be supported by a useful sentence, meeting detail, or coherent inferred meaning.",
     "",
     "Category definitions:",
     "- decisions: final choices, approvals, commitments, or explicit agreements.",
     "- risks: blockers, dependencies, delays, missing information, quality concerns, or operational risks.",
-    "- relevant: useful topics or details that belong in the dashboard but are not decisions, risks, key points, or conclusions.",
-    "- keyPoints: important discussion points, action-oriented observations, or next-step context.",
+    "- importantPoints: all useful topics, relevant details, important discussion points, action-oriented observations, and next-step context that are not decisions, risks, or conclusions.",
     "- conclusions: final takeaways or coherent end-state summaries.",
+    "",
+    "Category language cues:",
+    JSON.stringify(GEMINI_DASHBOARD_CATEGORY_CUES, null, 2),
     "",
     "Meeting context JSON:",
     input.rawContext
@@ -1677,13 +1773,7 @@ function buildGeminiDashboardSchema() {
           type: "string"
         }
       },
-      relevant: {
-        type: "array",
-        items: {
-          type: "string"
-        }
-      },
-      keyPoints: {
+      importantPoints: {
         type: "array",
         items: {
           type: "string"
@@ -1696,7 +1786,7 @@ function buildGeminiDashboardSchema() {
         }
       }
     },
-    required: ["decisions", "risks", "relevant", "keyPoints", "conclusions"],
+    required: ["decisions", "risks", "importantPoints", "conclusions"],
     additionalProperties: false
   };
 }
@@ -1715,6 +1805,11 @@ function validateGeminiDashboardInterpretation(value) {
     dashboard: {
       decisions: normalizeGeminiDashboardItems(candidate.decisions, "decisions"),
       risks: normalizeGeminiDashboardItems(candidate.risks || candidate.risksOrBlockers, "risks"),
+      importantPoints: normalizeGeminiDashboardItems([
+        ...normalizeGeminiDashboardItems(candidate.importantPoints, "importantPoints"),
+        ...normalizeGeminiDashboardItems(candidate.relevant || candidate.topics, "importantPoints"),
+        ...normalizeGeminiDashboardItems(candidate.keyPoints, "importantPoints")
+      ], "importantPoints"),
       relevant: normalizeGeminiDashboardItems(candidate.relevant || candidate.topics, "relevant"),
       keyPoints: normalizeGeminiDashboardItems(candidate.keyPoints, "keyPoints"),
       conclusions: normalizeGeminiDashboardItems(candidate.conclusions, "conclusions")
@@ -1745,8 +1840,8 @@ function normalizeGeminiDashboardItems(value, category) {
 function sanitizeGeminiDashboardItem(value) {
   return truncateText(
     normalizeBusinessEnglishText(removeGeminiSpeechNoise(value))
-      .replace(/\s+(?:decision|risk|blocker|relevant|topic|key point|conclusion)\s*:\s*[\s\S]*$/i, "")
-      .replace(/^\s*(?:decision|risk|blocker|relevant|topic|key point|conclusion)\s*:\s*/i, "")
+      .replace(/\s+(?:decision|risk|blocker|relevant|topic|key point|important point|conclusion)\s*:\s*[\s\S]*$/i, "")
+      .replace(/^\s*(?:decision|risk|blocker|relevant|topic|key point|important point|conclusion)\s*:\s*/i, "")
       .replace(/\b(?:zero|0)\s+decisions?\b[^.?!]*(?:\.|$)/gi, " ")
       .replace(/\b\d+\s+(?:pending\s+)?(?:tasks?|decisions?|items?)\b/gi, " ")
       .replace(/[•*#>`_]+/g, " ")
@@ -1834,8 +1929,7 @@ function createEmptyGeminiDashboard() {
   return {
     decisions: [],
     risks: [],
-    relevant: [],
-    keyPoints: [],
+    importantPoints: [],
     conclusions: []
   };
 }

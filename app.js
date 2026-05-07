@@ -4,6 +4,7 @@ const loadSampleButton = document.getElementById("loadSampleButton");
 const globalSearchInput = document.getElementById("globalSearchInput");
 const clearSearchButton = document.getElementById("clearSearchButton");
 const searchStatus = document.getElementById("searchStatus");
+const themeToggleButton = document.getElementById("themeToggleButton");
 const copyEmailButton = document.getElementById("copyEmailButton");
 const openGmailButton = document.getElementById("openGmailButton");
 const emailRowsOutput = document.getElementById("emailRowsOutput");
@@ -74,6 +75,10 @@ const dashboardConceptLegend = document.getElementById("dashboardConceptLegend")
 const dashboardConceptTotal = document.getElementById("dashboardConceptTotal");
 const dashboardConceptLabel = document.getElementById("dashboardConceptLabel");
 const dashboardConceptEmpty = document.getElementById("dashboardConceptEmpty");
+const dashboardReportMenu = document.querySelector(".dashboard-report-menu");
+const dashboardReportPdfButton = document.getElementById("dashboardReportPdfButton");
+const dashboardReportEmailButton = document.getElementById("dashboardReportEmailButton");
+const dashboardReportHtmlButton = document.getElementById("dashboardReportHtmlButton");
 const schedulerForm = document.getElementById("schedulerForm");
 const meetingTitle = document.getElementById("meetingTitle");
 const meetingDate = document.getElementById("meetingDate");
@@ -166,6 +171,9 @@ let latestGeminiEmailOnlyJob = null;
 let dashboardGeminiTimer = null;
 let dashboardGeminiRequestCounter = 0;
 let latestDashboardGeminiSourceKey = "";
+let dashboardGeminiQueuedAt = 0;
+let lastGoodGeminiDashboardInsights = null;
+let lastGoodGeminiDashboardSourceText = "";
 const attemptedGeminiDashboardSourceKeys = new Set();
 let explicitTranscriptClearInProgress = false;
 let latestAnalysis = null;
@@ -248,22 +256,117 @@ const GEMINI_EMAIL_ONLY_DEBOUNCE_MS = 2800;
 const GEMINI_EMAIL_ONLY_TIMEOUT_MS = 22000;
 const GEMINI_DASHBOARD_INTERPRETATION_CLIENT_ENABLED = true;
 const GEMINI_DASHBOARD_ONLY_RENDERING = true;
-const GEMINI_DASHBOARD_DEBOUNCE_MS = 6500;
+const GEMINI_DASHBOARD_DEBOUNCE_MS = 2800;
+const GEMINI_DASHBOARD_MAX_WAIT_MS = 9000;
 const EMAIL_TOPIC_DUPLICATE_OVERLAP = 0.72;
+const THEME_STORAGE_KEY = "aiMeetingAssistant.theme";
 const LIVE_TRANSCRIPT_STORAGE_KEY = "aiMeetingAssistant.liveTranscript";
 const DASHBOARD_CONCEPT_CATEGORIES = [
   { key: "decisions", label: "Decisions", color: "#2563eb" },
   { key: "risks", label: "Risks or Blockers", color: "#dc2626" },
-  { key: "relevant", label: "Relevant", color: "#0f766e" },
-  { key: "keyPoints", label: "Key Points", color: "#7c3aed" },
+  { key: "importantPoints", label: "Important Points", color: "#7c3aed" },
   { key: "conclusions", label: "Conclusions", color: "#d97706" }
 ];
 const DASHBOARD_CONCEPT_LIMITS = {
   decisions: 5,
   risks: 5,
-  relevant: 6,
-  keyPoints: 6,
+  importantPoints: 8,
+  relevant: 8,
+  keyPoints: 8,
   conclusions: 3
+};
+const DASHBOARD_LABEL_ALIASES = {
+  decisions: [
+    "decision",
+    "decisions",
+    "choice",
+    "choices",
+    "agreement",
+    "agreements",
+    "approval",
+    "approvals",
+    "commitment",
+    "commitments",
+    "confirmation",
+    "confirmations",
+    "final call",
+    "go ahead",
+    "green light"
+  ],
+  risks: [
+    "risk",
+    "risks",
+    "risks or blockers",
+    "blocker",
+    "blockers",
+    "danger",
+    "dangers",
+    "dangerous",
+    "issue",
+    "issues",
+    "problem",
+    "problems",
+    "concern",
+    "concerns",
+    "obstacle",
+    "obstacles",
+    "dependency",
+    "dependencies",
+    "delay",
+    "delays",
+    "warning",
+    "warnings"
+  ],
+  importantPoints: [
+    "important point",
+    "important points",
+    "key point",
+    "key points",
+    "main point",
+    "main points",
+    "relevant",
+    "topic",
+    "topics",
+    "highlight",
+    "highlights",
+    "context",
+    "update",
+    "updates",
+    "detail",
+    "details",
+    "priority",
+    "priorities",
+    "focus",
+    "insight",
+    "insights",
+    "observation",
+    "observations",
+    "action item",
+    "action items",
+    "next action",
+    "next actions",
+    "follow-up",
+    "follow ups"
+  ],
+  conclusions: [
+    "conclusion",
+    "conclusions",
+    "takeaway",
+    "takeaways",
+    "summary",
+    "summaries",
+    "outcome",
+    "outcomes",
+    "result",
+    "results",
+    "wrap-up",
+    "wrap up",
+    "final thought",
+    "final thoughts",
+    "end state",
+    "next step",
+    "next steps"
+  ]
 };
 const DASHBOARD_INSIGHT_STOP_WORDS = new Set([
   "this",
@@ -411,6 +514,7 @@ const stopWords = new Set([
 
 manualModeButton.addEventListener("click", () => switchMode("manual"));
 liveModeButton.addEventListener("click", () => switchMode("live"));
+themeToggleButton?.addEventListener("click", toggleThemeMode);
 
 globalSearchInput.addEventListener("input", () => {
   activeSearchQuery = globalSearchInput.value.trim();
@@ -424,6 +528,21 @@ clearSearchButton.addEventListener("click", () => {
   clearSearchButton.disabled = true;
   applyGlobalSearch();
   globalSearchInput.focus();
+});
+
+dashboardReportPdfButton?.addEventListener("click", () => {
+  exportDashboardReportPdf();
+  closeDashboardReportMenu();
+});
+
+dashboardReportEmailButton?.addEventListener("click", () => {
+  exportDashboardReportEmail();
+  closeDashboardReportMenu();
+});
+
+dashboardReportHtmlButton?.addEventListener("click", () => {
+  exportDashboardReportHtml();
+  closeDashboardReportMenu();
 });
 
 generateButton.addEventListener("click", () => {
@@ -573,6 +692,7 @@ window.addEventListener("beforeunload", () => {
 });
 
 initializeLiveMode();
+initializeThemeMode();
 initializeScheduler();
 refreshAuthStatus();
 refreshNotionStatus();
@@ -9041,6 +9161,45 @@ function switchMode(mode) {
   }
 }
 
+function initializeThemeMode() {
+  const savedTheme = getSavedThemeMode();
+  const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  setThemeMode(savedTheme || (prefersDark ? "dark" : "light"), { persist: false });
+}
+
+function toggleThemeMode() {
+  const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  setThemeMode(nextTheme, { persist: true });
+}
+
+function setThemeMode(theme, options = {}) {
+  const mode = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = mode;
+
+  if (themeToggleButton) {
+    const isDark = mode === "dark";
+    themeToggleButton.textContent = isDark ? "Light mode" : "Dark mode";
+    themeToggleButton.setAttribute("aria-pressed", String(isDark));
+  }
+
+  if (options.persist) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, mode);
+    } catch (error) {
+      // Theme preference is optional; the app should continue if browser storage is unavailable.
+    }
+  }
+}
+
+function getSavedThemeMode() {
+  try {
+    const value = localStorage.getItem(THEME_STORAGE_KEY);
+    return value === "dark" || value === "light" ? value : "";
+  } catch (error) {
+    return "";
+  }
+}
+
 function canUseLiveVoiceOrigin() {
   return location.protocol === "http:" || location.protocol === "https:";
 }
@@ -10500,14 +10659,15 @@ function analyzeLiveTranscript(transcript) {
 function renderMeetingDashboard(sourceText, insights, statusText) {
   if (!sourceText || !insights) {
     cancelGeminiDashboardInterpretation();
+    lastGoodGeminiDashboardInsights = null;
+    lastGoodGeminiDashboardSourceText = "";
     if (dashboardStatus) {
       dashboardStatus.textContent = statusText || "Ready for notes";
       dashboardStatus.classList.remove("live");
     }
     renderList(dashboardDecisions, [], "No decisions detected yet.");
     renderList(dashboardRisks, [], "No risks or blockers detected yet.");
-    renderList(dashboardRelevant, [], "No relevant topics detected yet.");
-    renderList(dashboardKeyPoints, [], "No key points detected yet.");
+    renderList(dashboardRelevant, [], "No important points detected yet.");
     renderList(dashboardConclusions, [], "No conclusions detected yet.");
     renderDashboardConceptBreakdown(null);
     return;
@@ -10522,16 +10682,15 @@ function renderMeetingDashboard(sourceText, insights, statusText) {
 
   renderList(dashboardDecisions, displayInsights.decisions || [], "No decisions detected yet.");
   renderList(dashboardRisks, displayInsights.risks || [], "No risks or blockers detected yet.");
-  renderList(dashboardRelevant, displayInsights.relevant || displayInsights.topics || [], "No relevant topics detected yet.");
-  renderList(dashboardKeyPoints, displayInsights.keyPoints || [], "No key points detected yet.");
+  renderList(dashboardRelevant, displayInsights.importantPoints || [], "No important points detected yet.");
   renderList(dashboardConclusions, displayInsights.conclusions || [], "No conclusions detected yet.");
   renderDashboardConceptBreakdown(getDashboardConceptBreakdown(displayInsights));
 }
 
 function getDashboardConceptBreakdown(insights = {}) {
   return DASHBOARD_CONCEPT_CATEGORIES.map((category) => {
-    const values = category.key === "relevant"
-      ? insights.relevant || insights.topics || []
+    const values = category.key === "importantPoints"
+      ? insights.importantPoints || mergeDashboardImportantPoints(insights)
       : insights[category.key] || [];
 
     return {
@@ -10596,15 +10755,31 @@ function renderDashboardConceptBreakdown(categories) {
 
 function normalizeDashboardInsightsForDisplay(insights = {}) {
   const relevant = normalizeDashboardInsightList(insights.relevant || insights.topics || [], "relevant");
+  const keyPoints = normalizeDashboardInsightList(insights.keyPoints || [], "keyPoints");
+  const importantPoints = normalizeDashboardInsightList([
+    ...(Array.isArray(insights.importantPoints) ? insights.importantPoints : []),
+    ...relevant,
+    ...keyPoints
+  ], "importantPoints");
   return {
     ...insights,
     decisions: normalizeDashboardInsightList(insights.decisions || [], "decisions"),
     risks: normalizeDashboardInsightList(insights.risks || [], "risks"),
-    relevant,
-    topics: relevant,
-    keyPoints: normalizeDashboardInsightList(insights.keyPoints || [], "keyPoints"),
+    importantPoints,
+    relevant: importantPoints,
+    topics: importantPoints,
+    keyPoints: importantPoints,
     conclusions: normalizeDashboardInsightList(insights.conclusions || [], "conclusions")
   };
+}
+
+function mergeDashboardImportantPoints(insights = {}) {
+  return normalizeDashboardInsightList([
+    ...(Array.isArray(insights.importantPoints) ? insights.importantPoints : []),
+    ...(Array.isArray(insights.relevant) ? insights.relevant : []),
+    ...(Array.isArray(insights.topics) ? insights.topics : []),
+    ...(Array.isArray(insights.keyPoints) ? insights.keyPoints : [])
+  ], "importantPoints");
 }
 
 function normalizeDashboardInsightList(items, category) {
@@ -10627,11 +10802,350 @@ function normalizeDashboardInsightList(items, category) {
     .slice(0, limit);
 }
 
+function closeDashboardReportMenu() {
+  if (dashboardReportMenu) {
+    dashboardReportMenu.open = false;
+  }
+}
+
+function getDashboardReportFilename(extension) {
+  return `aissistant-dashboard-report-${formatDateForFilename(new Date())}.${extension}`;
+}
+
+function exportDashboardReportHtml() {
+  const report = buildDashboardReportModel();
+  const html = buildDashboardReportHtml(report);
+
+  downloadTextFile(html, getDashboardReportFilename("html"), "text/html;charset=utf-8");
+}
+
+function exportDashboardReportPdf() {
+  const report = buildDashboardReportModel();
+  const html = buildDashboardReportHtml(report);
+
+  openDashboardReportWindow(html, { print: true });
+}
+
+function exportDashboardReportEmail() {
+  const report = buildDashboardReportModel();
+  const subject = `AIssistant Dashboard Report - ${formatDateForFilename(report.generatedAt)}`;
+  const body = buildDashboardReportEmailBody(report);
+  const gmailUrl = buildGmailComposeUrl({
+    recipients: "",
+    subject,
+    body
+  });
+  const openedWindow = window.open(gmailUrl, "_blank", "noopener,noreferrer");
+
+  if (!openedWindow) {
+    downloadTextFile(body, getDashboardReportFilename("txt"), "text/plain;charset=utf-8");
+    setInputStatus("Gmail was blocked by the browser. The dashboard report was downloaded as text.", true);
+    return;
+  }
+
+  setInputStatus("Dashboard report opened in Gmail for review. Nothing was sent automatically.", false);
+}
+
+function buildDashboardReportModel() {
+  const insights = {
+    decisions: getVisibleDashboardListItems(dashboardDecisions),
+    risks: getVisibleDashboardListItems(dashboardRisks),
+    importantPoints: getVisibleDashboardListItems(dashboardRelevant),
+    conclusions: getVisibleDashboardListItems(dashboardConclusions)
+  };
+  const categories = getDashboardConceptBreakdown(insights);
+  const total = categories.reduce((sum, item) => sum + item.count, 0);
+
+  return {
+    title: "AIssistant Dashboard Report",
+    generatedAt: new Date(),
+    status: normalizeBusinessEnglishText(dashboardStatus?.textContent || "Current dashboard export"),
+    total,
+    categories,
+    sections: [
+      {
+        title: "Decisions",
+        emptyText: "No decisions detected yet.",
+        items: insights.decisions
+      },
+      {
+        title: "Risks or Blockers",
+        emptyText: "No risks or blockers detected yet.",
+        items: insights.risks
+      },
+      {
+        title: "Important Points",
+        emptyText: "No important points detected yet.",
+        items: insights.importantPoints
+      },
+      {
+        title: "Conclusions",
+        emptyText: "No conclusions detected yet.",
+        items: insights.conclusions
+      }
+    ]
+  };
+}
+
+function buildDashboardReportEmailBody(report) {
+  const generatedAt = report.generatedAt.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+  const lines = [
+    "Hi,",
+    "",
+    "Here is the current AIssistant dashboard report for review.",
+    "",
+    `Generated: ${generatedAt}`,
+    `Status: ${report.status}`,
+    `Total items: ${report.total}`,
+    "",
+    "Concept Breakdown:"
+  ];
+
+  if (report.categories.length) {
+    report.categories.forEach((category) => {
+      lines.push(`- ${category.label}: ${category.count}`);
+    });
+  } else {
+    lines.push("- No meeting intelligence detected yet.");
+  }
+
+  report.sections.forEach((section) => {
+    lines.push("", `${section.title}:`);
+
+    if (section.items.length) {
+      section.items.forEach((item) => lines.push(`- ${item}`));
+      return;
+    }
+
+    lines.push(`- ${section.emptyText}`);
+  });
+
+  lines.push("", "Best,");
+  return lines.join("\n");
+}
+
+function getVisibleDashboardListItems(element) {
+  return Array.from(element?.querySelectorAll("li") || [])
+    .map((item) => normalizeBusinessEnglishText(item.textContent || ""))
+    .filter(Boolean)
+    .filter((item) => !/^no\s+.+\s+detected\s+yet\.?$/i.test(item));
+}
+
+function buildDashboardReportHtml(report) {
+  const generatedAt = report.generatedAt.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+  const categoryRows = report.categories.map((category) => `
+        <tr>
+          <td><span class="swatch" style="background:${escapeHtml(category.color)}"></span>${escapeHtml(category.label)}</td>
+          <td>${category.count}</td>
+        </tr>`).join("");
+  const sections = report.sections.map((section) => `
+      <section class="report-section">
+        <h2>${escapeHtml(section.title)}</h2>
+        ${section.items.length
+          ? `<ul>${section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+          : `<p class="empty">${escapeHtml(section.emptyText)}</p>`}
+      </section>`).join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(report.title)}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.5;
+      color: #111827;
+      background: #f8fafc;
+    }
+    body {
+      margin: 0;
+      padding: 32px;
+    }
+    main {
+      max-width: 920px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 28px;
+    }
+    .report-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 20px;
+    }
+    button {
+      background: #2563eb;
+      border: 0;
+      border-radius: 8px;
+      color: #ffffff;
+      cursor: pointer;
+      font-weight: 700;
+      min-height: 36px;
+      padding: 0 14px;
+    }
+    h1 {
+      font-size: 28px;
+      margin: 0 0 6px;
+    }
+    .meta {
+      color: #667085;
+      margin: 0 0 22px;
+    }
+    .summary {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(180px, 0.5fr) minmax(240px, 1fr);
+      margin-bottom: 24px;
+    }
+    .total {
+      align-items: center;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      display: flex;
+      justify-content: center;
+      min-height: 120px;
+      text-align: center;
+    }
+    .total strong {
+      display: block;
+      font-size: 34px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 8px 4px;
+      vertical-align: top;
+    }
+    td:last-child {
+      font-weight: 700;
+      text-align: right;
+      width: 72px;
+    }
+    .swatch {
+      border-radius: 999px;
+      display: inline-block;
+      height: 10px;
+      margin-right: 8px;
+      width: 10px;
+    }
+    .report-section {
+      break-inside: avoid;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 18px;
+      margin-top: 18px;
+    }
+    h2 {
+      font-size: 18px;
+      margin: 0 0 10px;
+    }
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    li {
+      margin: 0 0 8px;
+    }
+    .empty {
+      color: #667085;
+      margin: 0;
+    }
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+      main {
+        border: 0;
+        border-radius: 0;
+        max-width: none;
+      }
+      .report-actions {
+        display: none;
+      }
+    }
+    @media (max-width: 720px) {
+      body {
+        padding: 16px;
+      }
+      main {
+        padding: 20px;
+      }
+      .summary {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="report-actions">
+      <button type="button" onclick="window.print()">Print / Save PDF</button>
+    </div>
+    <header>
+      <h1>${escapeHtml(report.title)}</h1>
+      <p class="meta">Generated ${escapeHtml(generatedAt)} - ${escapeHtml(report.status)}</p>
+    </header>
+    <section class="summary" aria-label="Concept breakdown">
+      <div class="total">
+        <div>
+          <strong>${report.total}</strong>
+          <span>${report.total === 1 ? "item" : "items"}</span>
+        </div>
+      </div>
+      <table>
+        <tbody>${categoryRows}</tbody>
+      </table>
+    </section>
+    ${sections}
+  </main>
+</body>
+</html>`;
+}
+
+function openDashboardReportWindow(html, options = {}) {
+  const reportWindow = window.open("", "_blank");
+  if (!reportWindow) {
+    setInputStatus("The browser blocked the report window. Try Download HTML instead.", true);
+    return;
+  }
+
+  reportWindow.document.open();
+  reportWindow.document.write(html);
+  reportWindow.document.close();
+
+  if (options.print) {
+    reportWindow.setTimeout(() => reportWindow.print(), 350);
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[character]);
+}
+
 function sanitizeDashboardInsightText(value) {
   return truncateAgendaText(
     normalizeBusinessEnglishText(value)
-      .replace(/\s+(?:decision|risk|blocker|relevant|topic|key point|conclusion)\s*:\s*[\s\S]*$/i, "")
-      .replace(/^\s*(?:decision|risk|blocker|relevant|topic|key point|conclusion)\s*:\s*/i, "")
+      .replace(/\s+(?:decision|risk|blocker|relevant|topic|key point|important point|conclusion)\s*:\s*[\s\S]*$/i, "")
+      .replace(/^\s*(?:decision|risk|blocker|relevant|topic|key point|important point|conclusion)\s*:\s*/i, "")
       .replace(/\bI\s+(?:want|need|would\s+like)\s+to\s+(?:send|write|draft|prepare|create|compose)\s+(?:an?\s+)?(?:(?:summary|recap|follow[- ]?up|update|short|quick)\s+){0,3}(?:email|message|gmail draft)\b[\s\S]*$/i, "")
       .replace(/\b(?:zero|0)\s+decisions?\b[^.?!]*(?:\.|$)/gi, " ")
       .replace(/\b\d+\s+(?:pending\s+)?(?:tasks?|decisions?|items?)\b/gi, " ")
@@ -10681,8 +11195,16 @@ function scheduleGeminiDashboardInterpretation(sourceText, analysis, fallbackIns
     return;
   }
 
+  const now = Date.now();
+  const queuedAt = dashboardGeminiQueuedAt || now;
+  const waitMs = dashboardGeminiTimer && now - queuedAt >= GEMINI_DASHBOARD_MAX_WAIT_MS
+    ? 0
+    : GEMINI_DASHBOARD_DEBOUNCE_MS;
+
   if (dashboardGeminiTimer) {
     clearTimeout(dashboardGeminiTimer);
+  } else {
+    dashboardGeminiQueuedAt = now;
   }
 
   const requestId = ++dashboardGeminiRequestCounter;
@@ -10690,8 +11212,9 @@ function scheduleGeminiDashboardInterpretation(sourceText, analysis, fallbackIns
   latestDashboardGeminiSourceKey = sourceKey;
   dashboardGeminiTimer = setTimeout(() => {
     dashboardGeminiTimer = null;
+    dashboardGeminiQueuedAt = 0;
     requestGeminiDashboardInterpretation(readOnlySnapshot, sourceKey, requestId);
-  }, GEMINI_DASHBOARD_DEBOUNCE_MS);
+  }, waitMs);
 }
 
 function cancelGeminiDashboardInterpretation() {
@@ -10700,6 +11223,7 @@ function cancelGeminiDashboardInterpretation() {
     dashboardGeminiTimer = null;
   }
 
+  dashboardGeminiQueuedAt = 0;
   latestDashboardGeminiSourceKey = "";
   dashboardGeminiRequestCounter += 1;
 }
@@ -10713,6 +11237,7 @@ function hasGeminiDashboardContext(sourceText, analysis, fallbackInsights) {
     (analysis?.decisions || []).length ||
     (analysis?.risks || []).length ||
     (analysis?.tasks || []).length ||
+    (fallbackInsights?.importantPoints || []).length ||
     (fallbackInsights?.relevant || fallbackInsights?.topics || []).length ||
     (fallbackInsights?.keyPoints || []).length ||
     (fallbackInsights?.conclusions || []).length
@@ -10760,13 +11285,14 @@ async function requestGeminiDashboardInterpretation(readOnlySnapshot, sourceKey,
     const geminiInsights = mapGeminiDashboardResult(result);
     if (geminiInsights) {
       rememberGeminiDashboardAttempt(sourceKey);
+      rememberGoodGeminiDashboard(readOnlySnapshot.sourceText, geminiInsights);
       renderMeetingDashboard(readOnlySnapshot.sourceText, geminiInsights, "Dashboard updated from meeting context.");
       applyGlobalSearch();
       return;
     }
 
     if (result?.reason) {
-      renderMeetingDashboard(null, null, result.reason);
+      renderPendingGeminiDashboard(result.reason);
       applyGlobalSearch();
       return;
     }
@@ -10775,9 +11301,31 @@ async function requestGeminiDashboardInterpretation(readOnlySnapshot, sourceKey,
   }
 
   if (isCurrentGeminiDashboardRequest(sourceKey, requestId)) {
-    renderMeetingDashboard(null, null, "Gemini dashboard unavailable. Waiting for interpreted meeting context.");
+    renderPendingGeminiDashboard("Gemini dashboard unavailable. Keeping the latest interpreted dashboard visible.");
     applyGlobalSearch();
   }
+}
+
+function rememberGoodGeminiDashboard(sourceText, insights) {
+  if (!hasDashboardInsightItems(insights)) {
+    return;
+  }
+
+  lastGoodGeminiDashboardSourceText = sourceText || lastGoodGeminiDashboardSourceText || "";
+  lastGoodGeminiDashboardInsights = insights;
+}
+
+function renderPendingGeminiDashboard(statusText) {
+  if (lastGoodGeminiDashboardInsights) {
+    renderMeetingDashboard(
+      lastGoodGeminiDashboardSourceText || latestSourceText || "dashboard context",
+      lastGoodGeminiDashboardInsights,
+      statusText || "Updating dashboard with Gemini."
+    );
+    return;
+  }
+
+  renderMeetingDashboard(null, null, statusText || "Waiting for Gemini dashboard interpretation.");
 }
 
 function isCurrentGeminiDashboardRequest(sourceKey, requestId) {
@@ -10809,6 +11357,7 @@ function buildGeminiDashboardInterpretationPayload(readOnlySnapshot) {
     dashboardContext: {
       decisions: normalizeBusinessEnglishList(currentDashboard.decisions || []),
       risks: normalizeBusinessEnglishList(currentDashboard.risks || []),
+      importantPoints: normalizeBusinessEnglishList(mergeDashboardImportantPoints(currentDashboard)),
       relevant: normalizeBusinessEnglishList(currentDashboard.relevant || currentDashboard.topics || []),
       keyPoints: normalizeBusinessEnglishList(currentDashboard.keyPoints || []),
       conclusions: normalizeBusinessEnglishList(currentDashboard.conclusions || [])
@@ -10818,6 +11367,7 @@ function buildGeminiDashboardInterpretationPayload(readOnlySnapshot) {
       decisions: normalizeBusinessEnglishList(currentAnalysis?.decisions || []),
       risks: normalizeBusinessEnglishList(currentAnalysis?.risks || []),
       actionItems: normalizeBusinessEnglishList((currentAnalysis?.tasks || []).map((task) => task?.task || task)),
+      importantPoints: normalizeBusinessEnglishList(mergeDashboardImportantPoints(currentDashboard)),
       relevant: normalizeBusinessEnglishList(currentDashboard.relevant || currentDashboard.topics || []),
       keyPoints: normalizeBusinessEnglishList(currentDashboard.keyPoints || []),
       conclusions: normalizeBusinessEnglishList(currentDashboard.conclusions || [])
@@ -10831,6 +11381,7 @@ function createEmptyDashboardInsights() {
   return {
     decisions: [],
     risks: [],
+    importantPoints: [],
     relevant: [],
     topics: [],
     keyPoints: [],
@@ -10878,13 +11429,14 @@ function normalizeGeminiDashboardInsights(value) {
     return null;
   }
 
-  const relevant = normalizeDashboardInsightList(value.relevant || value.topics || [], "relevant");
+  const importantPoints = mergeDashboardImportantPoints(value);
   return {
     decisions: normalizeDashboardInsightList(value.decisions || [], "decisions"),
     risks: normalizeDashboardInsightList(value.risks || value.risksOrBlockers || [], "risks"),
-    relevant,
-    topics: relevant,
-    keyPoints: normalizeDashboardInsightList(value.keyPoints || [], "keyPoints"),
+    importantPoints,
+    relevant: importantPoints,
+    topics: importantPoints,
+    keyPoints: importantPoints,
     conclusions: normalizeDashboardInsightList(value.conclusions || [], "conclusions")
   };
 }
@@ -11618,7 +12170,7 @@ function updateMeetingDashboardFromContext(sourceText, analysis, dashboardStatus
   const dashboardSourceText = sourceText;
   const fallbackDashboardInsights = buildDashboardInsights(dashboardSourceText, analysis);
   if (GEMINI_DASHBOARD_ONLY_RENDERING) {
-    renderMeetingDashboard(null, null, "Waiting for Gemini dashboard interpretation.");
+    renderPendingGeminiDashboard("Gemini is updating the dashboard from the latest Notes.");
   } else {
     renderMeetingDashboard(dashboardSourceText, fallbackDashboardInsights, dashboardStatusLabel);
   }
@@ -11634,8 +12186,16 @@ function buildDashboardInsights(sourceText, analysis) {
   const labeledInsights = extractDashboardLabeledInsights(sourceText);
 
   return {
-    relevant: dedupe([...labeledInsights.relevant, ...structuredSections.topics, ...extractTopics(sourceText)]).slice(0, 6),
-    keyPoints: dedupe([...labeledInsights.keyPoints, ...extractKeyPoints(chunks, analysis.decisions, analysis.tasks, analysis.risks)]).slice(0, 6),
+    importantPoints: dedupe([
+      ...labeledInsights.importantPoints,
+      ...labeledInsights.relevant,
+      ...labeledInsights.keyPoints,
+      ...structuredSections.topics,
+      ...extractTopics(sourceText),
+      ...extractKeyPoints(chunks, analysis.decisions, analysis.tasks, analysis.risks)
+    ]).slice(0, 8),
+    relevant: dedupe([...labeledInsights.relevant, ...structuredSections.topics, ...extractTopics(sourceText)]).slice(0, 8),
+    keyPoints: dedupe([...labeledInsights.keyPoints, ...extractKeyPoints(chunks, analysis.decisions, analysis.tasks, analysis.risks)]).slice(0, 8),
     decisions: dedupe([...labeledInsights.decisions, ...analysis.decisions]).slice(0, 5),
     risks: dedupe([...labeledInsights.risks, ...analysis.risks]).slice(0, 5),
     conclusions: dedupe([...labeledInsights.conclusions, ...extractConclusions(chunks, analysis)]).slice(0, 3),
@@ -11647,11 +12207,12 @@ function extractDashboardLabeledInsights(sourceText) {
   const insights = {
     decisions: [],
     risks: [],
+    importantPoints: [],
     relevant: [],
     keyPoints: [],
     conclusions: []
   };
-  const labelPattern = "(?:decisions?|risks?\\s+or\\s+blockers?|risks?|blockers?|relevant|key\\s+points?|conclusions?)";
+  const labelPattern = buildDashboardLabelPattern();
   const pattern = new RegExp(`\\b(${labelPattern})\\s*:\\s*([\\s\\S]*?)(?=\\s+\\b${labelPattern}\\s*:|$)`, "gi");
   let match;
 
@@ -11666,33 +12227,41 @@ function extractDashboardLabeledInsights(sourceText) {
   return {
     decisions: dedupe(insights.decisions).slice(0, 5),
     risks: dedupe(insights.risks).slice(0, 5),
-    relevant: dedupe(insights.relevant).slice(0, 6),
-    keyPoints: dedupe(insights.keyPoints).slice(0, 6),
+    importantPoints: dedupe(insights.importantPoints).slice(0, 8),
+    relevant: dedupe(insights.relevant).slice(0, 8),
+    keyPoints: dedupe(insights.keyPoints).slice(0, 8),
     conclusions: dedupe(insights.conclusions).slice(0, 3)
   };
 }
 
 function normalizeDashboardLabelKey(value) {
   const label = normalizeForComparison(value || "");
-  if (/^decisions?$/.test(label)) {
-    return "decisions";
+  for (const [category, aliases] of Object.entries(DASHBOARD_LABEL_ALIASES)) {
+    if (aliases.some((alias) => normalizeForComparison(alias) === label)) {
+      return category;
+    }
   }
-  if (/^(risks?(?: or blockers?)?|blockers?)$/.test(label)) {
-    return "risks";
-  }
-  if (label === "relevant") {
-    return "relevant";
-  }
-  if (/^key points?$/.test(label)) {
-    return "keyPoints";
-  }
-  if (/^conclusions?$/.test(label)) {
-    return "conclusions";
-  }
+
   return "";
 }
 
+function buildDashboardLabelPattern() {
+  return Object.values(DASHBOARD_LABEL_ALIASES)
+    .flat()
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegExp)
+    .join("|");
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+}
+
 function renderList(element, items, emptyText) {
+  if (!element) {
+    return;
+  }
+
   element.innerHTML = "";
   element.classList.toggle("empty-list", items.length === 0);
 
@@ -11996,6 +12565,18 @@ function downloadCsv(csv) {
   const link = document.createElement("a");
   link.href = url;
   link.download = `meeting-tasks-${formatDateForFilename(new Date())}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadTextFile(text, filename, type) {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   link.remove();

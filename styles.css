@@ -225,6 +225,48 @@ a:focus-visible {
   font-size: 1.22rem;
 }
 
+.dashboard-report-button {
+  align-self: flex-start;
+}
+
+.dashboard-report-menu {
+  align-self: flex-start;
+  position: relative;
+  z-index: 4;
+}
+
+.dashboard-report-menu summary {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.dashboard-report-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-report-options {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 6px;
+  min-width: 178px;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+}
+
+.dashboard-report-options button {
+  justify-content: flex-start;
+  width: 100%;
+}
+
 .dashboard-live-pill {
   align-items: center;
   background: #ffffff;
@@ -300,7 +342,7 @@ a:focus-visible {
   display: grid;
   gap: 10px;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .dashboard-card {
@@ -620,6 +662,24 @@ p {
 .approvals-panel {
   display: grid;
   gap: 14px;
+}
+
+.approvals-panel.email-section-hidden {
+  grid-template-rows: repeat(2, minmax(320px, 1fr));
+}
+
+.approvals-panel.email-section-hidden #notionTasksSection,
+.approvals-panel.email-section-hidden #meetingsSection {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.approvals-panel.email-section-hidden #notionTasksSection .compact-table-wrap,
+.approvals-panel.email-section-hidden #meetingsSection .compact-table-wrap {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: 260px;
 }
 
 .compact-panel-header {
@@ -2314,6 +2374,13 @@ tbody tr:hover td {
   max-height: 460px;
 }
 
+.approvals-panel.email-section-hidden #notionTasksSection .compact-table-wrap,
+.approvals-panel.email-section-hidden #meetingsSection .compact-table-wrap {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: 260px;
+}
+
 #emailsSection .emails-table th,
 #meetingsSection .meetings-table th,
 #notionTasksSection .notion-task-table th {
@@ -3021,5 +3088,301 @@ tr:has(.empty-table) td {
 
   #liveMode.active-mode #liveTranscript {
     min-height: 300px;
+  }
+}
+
+/* Theme mode */
+.topbar {
+  grid-template-columns: minmax(240px, 1fr) auto;
+}
+
+.theme-toggle-button {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b1020;
+  --bg-soft: #111827;
+  --surface: #151b2e;
+  --surface-soft: #101827;
+  --surface-alt: #1d2638;
+  --line: #2c354a;
+  --line-strong: #3b455d;
+  --text: #eef2ff;
+  --muted: #a8b3c7;
+  --accent: #7c8cff;
+  --accent-dark: #a855f7;
+  --accent-blue: #60a5fa;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+  --shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+  --shadow-soft: 0 10px 28px rgba(0, 0, 0, 0.26);
+  --gradient: linear-gradient(135deg, #7c8cff 0%, #a855f7 48%, #38bdf8 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(124, 140, 255, 0.16), rgba(168, 85, 247, 0.12), rgba(56, 189, 248, 0.1));
+}
+
+html[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at top left, rgba(124, 140, 255, 0.12), transparent 34%),
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.08), transparent 30%),
+    var(--bg);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .workflow-strip,
+html[data-theme="dark"] .global-search-panel,
+html[data-theme="dark"] .realtime-dashboard,
+html[data-theme="dark"] .input-panel,
+html[data-theme="dark"] .output-panel,
+html[data-theme="dark"] .approval-section,
+html[data-theme="dark"] .dashboard-card,
+html[data-theme="dark"] .dashboard-report-options,
+html[data-theme="dark"] .live-control-panel,
+html[data-theme="dark"] .compact-table-wrap,
+html[data-theme="dark"] .inline-approval-table-wrap,
+html[data-theme="dark"] .calendar-auth-panel,
+html[data-theme="dark"] .compact-auth-panel,
+html[data-theme="dark"] .inline-page-approval,
+html[data-theme="dark"] .confirmation-modal,
+html[data-theme="dark"] .modal-backdrop .confirmation-modal {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: var(--shadow-soft);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .brand-mark {
+  background: #0f172a;
+  border-color: #475569;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.36), 0 0 0 1px rgba(124, 140, 255, 0.22);
+}
+
+html[data-theme="dark"] .brand-lockup h1,
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] .dashboard-card h3,
+html[data-theme="dark"] .dashboard-card h4,
+html[data-theme="dark"] .insight-card h4,
+html[data-theme="dark"] label,
+html[data-theme="dark"] strong {
+  color: var(--text);
+}
+
+html[data-theme="dark"] .brand-slogan,
+html[data-theme="dark"] .eyebrow,
+html[data-theme="dark"] .panel-header p,
+html[data-theme="dark"] .dashboard-header p,
+html[data-theme="dark"] .search-status,
+html[data-theme="dark"] .inline-status,
+html[data-theme="dark"] .transcript-actions,
+html[data-theme="dark"] .browser-note,
+html[data-theme="dark"] .field-help,
+html[data-theme="dark"] .empty-table,
+html[data-theme="dark"] .empty-list li,
+html[data-theme="dark"] #liveMeta {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .global-search-box input,
+html[data-theme="dark"] #notesInput,
+html[data-theme="dark"] #liveTranscript,
+html[data-theme="dark"] #emailOutput,
+html[data-theme="dark"] .field-group input,
+html[data-theme="dark"] .field-group select,
+html[data-theme="dark"] .field-group textarea,
+html[data-theme="dark"] #gmailRecipientsInput,
+html[data-theme="dark"] #gmailSubjectInput,
+html[data-theme="dark"] #gmailBodyInput {
+  background: #0f172a;
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #7f8ca3;
+}
+
+html[data-theme="dark"] .mode-switch,
+html[data-theme="dark"] .table-wrap,
+html[data-theme="dark"] .concept-donut-track {
+  background: #0f172a;
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .mode-tab {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .mode-tab.active,
+html[data-theme="dark"] .story-chip,
+html[data-theme="dark"] .status-pill,
+html[data-theme="dark"] .integration-status,
+html[data-theme="dark"] .listening-indicator,
+html[data-theme="dark"] .secondary-button,
+html[data-theme="dark"] .compact-button {
+  background: #1e293b;
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .secondary-button:hover:not(:disabled),
+html[data-theme="dark"] .compact-button:hover:not(:disabled),
+html[data-theme="dark"] .story-chip:hover,
+html[data-theme="dark"] .story-chip:focus-visible {
+  background: #273449;
+  border-color: #64748b;
+}
+
+html[data-theme="dark"] .primary-button,
+html[data-theme="dark"] .modal-actions .primary-button,
+html[data-theme="dark"] .inline-action-button:not(:disabled),
+html[data-theme="dark"] .confirmation-button:not(:disabled) {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .primary-button:hover:not(:disabled),
+html[data-theme="dark"] .modal-actions .primary-button:hover:not(:disabled),
+html[data-theme="dark"] .inline-action-button:hover:not(:disabled),
+html[data-theme="dark"] .confirmation-button:hover:not(:disabled) {
+  background: #6366f1;
+  border-color: #6366f1;
+}
+
+html[data-theme="dark"] table,
+html[data-theme="dark"] th,
+html[data-theme="dark"] td {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--text);
+}
+
+html[data-theme="dark"] thead th,
+html[data-theme="dark"] .approval-table th {
+  background: #111827;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] tbody tr:hover td {
+  background: #1f2937;
+}
+
+html[data-theme="dark"] .empty-table td,
+html[data-theme="dark"] tr:has(.empty-table) td {
+  background: #111827;
+}
+
+html[data-theme="dark"] .dashboard-card h3::after,
+html[data-theme="dark"] .insight-card h4::after {
+  background: var(--line);
+}
+
+html[data-theme="dark"] #dashboardHeading::before {
+  background:
+    linear-gradient(#a5b4fc, #a5b4fc) 7px 6px / 8px 2px no-repeat,
+    linear-gradient(#a5b4fc, #a5b4fc) 6px 10px / 10px 2px no-repeat,
+    linear-gradient(#a5b4fc, #a5b4fc) 8px 14px / 6px 2px no-repeat,
+    #1e1b4b;
+  border-color: #4338ca;
+}
+
+html[data-theme="dark"] #notionTasksHeading::before {
+  background:
+    linear-gradient(135deg, transparent 42%, #a5b4fc 43%, #a5b4fc 57%, transparent 58%) 7px 9px / 10px 7px no-repeat,
+    #1e1b4b;
+  border-color: #4338ca;
+}
+
+html[data-theme="dark"] #emailsHeading::before {
+  background: #172554;
+  border-color: #1d4ed8;
+  color: #bfdbfe;
+}
+
+html[data-theme="dark"] #meetingsHeading::before {
+  background:
+    linear-gradient(#93c5fd, #93c5fd) 6px 8px / 10px 2px no-repeat,
+    linear-gradient(#93c5fd, #93c5fd) 6px 12px / 10px 2px no-repeat,
+    #172554;
+  border-color: #1d4ed8;
+}
+
+html[data-theme="dark"] .live-control-panel {
+  background: #101827;
+  border-left-color: var(--accent);
+}
+
+html[data-theme="dark"] .consent-reminder,
+html[data-theme="dark"] .mic-recovery-panel,
+html[data-theme="dark"] .fallback-notice,
+html[data-theme="dark"] .modal-warning,
+html[data-theme="dark"] .meeting-warning,
+html[data-theme="dark"] .meeting-row-needs-detail td {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.36);
+  color: #fde68a;
+}
+
+html[data-theme="dark"] .schedule-result,
+html[data-theme="dark"] .inline-status.success,
+html[data-theme="dark"] .meeting-row-confirmed td,
+html[data-theme="dark"] .notion-row-confirmed td,
+html[data-theme="dark"] .email-row-confirmed td {
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.32);
+  color: #86efac;
+}
+
+html[data-theme="dark"] .schedule-result.error,
+html[data-theme="dark"] .inline-status.error {
+  background: rgba(251, 113, 133, 0.12);
+  border-color: rgba(251, 113, 133, 0.34);
+  color: #fda4af;
+}
+
+html[data-theme="dark"] .priority.high,
+html[data-theme="dark"] .confirmation-state.failed,
+html[data-theme="dark"] .confirmation-state.needs-detail {
+  background: rgba(251, 113, 133, 0.14);
+  color: #fda4af;
+}
+
+html[data-theme="dark"] .priority.medium,
+html[data-theme="dark"] .confirmation-state.pending,
+html[data-theme="dark"] .confirmation-state.pending-approval {
+  background: rgba(251, 191, 36, 0.14);
+  color: #fde68a;
+}
+
+html[data-theme="dark"] .priority.low,
+html[data-theme="dark"] .confirmation-state.confirmed {
+  background: rgba(52, 211, 153, 0.14);
+  color: #86efac;
+}
+
+html[data-theme="dark"] .modal-backdrop {
+  background: rgba(2, 6, 23, 0.72);
+}
+
+html[data-theme="dark"] button:disabled {
+  opacity: 0.46;
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-toggle-button {
+    justify-self: stretch;
+    width: 100%;
   }
 }
