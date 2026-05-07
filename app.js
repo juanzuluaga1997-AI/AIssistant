@@ -256,8 +256,9 @@ const GEMINI_EMAIL_ONLY_DEBOUNCE_MS = 2800;
 const GEMINI_EMAIL_ONLY_TIMEOUT_MS = 22000;
 const GEMINI_DASHBOARD_INTERPRETATION_CLIENT_ENABLED = true;
 const GEMINI_DASHBOARD_ONLY_RENDERING = true;
-const GEMINI_DASHBOARD_DEBOUNCE_MS = 2800;
-const GEMINI_DASHBOARD_MAX_WAIT_MS = 9000;
+const GEMINI_DASHBOARD_FAST_DEBOUNCE_MS = 900;
+const GEMINI_DASHBOARD_DEBOUNCE_MS = 1800;
+const GEMINI_DASHBOARD_MAX_WAIT_MS = 4200;
 const EMAIL_TOPIC_DUPLICATE_OVERLAP = 0.72;
 const THEME_STORAGE_KEY = "aiMeetingAssistant.theme";
 const LIVE_TRANSCRIPT_STORAGE_KEY = "aiMeetingAssistant.liveTranscript";
@@ -11311,9 +11312,7 @@ function scheduleGeminiDashboardInterpretation(sourceText, analysis, fallbackIns
 
   const now = Date.now();
   const queuedAt = dashboardGeminiQueuedAt || now;
-  const waitMs = dashboardGeminiTimer && now - queuedAt >= GEMINI_DASHBOARD_MAX_WAIT_MS
-    ? 0
-    : GEMINI_DASHBOARD_DEBOUNCE_MS;
+  const waitMs = getGeminiDashboardDebounceMs(sourceText, analysis, fallbackInsights, now, queuedAt);
 
   if (dashboardGeminiTimer) {
     clearTimeout(dashboardGeminiTimer);
@@ -11329,6 +11328,30 @@ function scheduleGeminiDashboardInterpretation(sourceText, analysis, fallbackIns
     dashboardGeminiQueuedAt = 0;
     requestGeminiDashboardInterpretation(readOnlySnapshot, sourceKey, requestId);
   }, waitMs);
+}
+
+function getGeminiDashboardDebounceMs(sourceText, analysis, fallbackInsights, now, queuedAt) {
+  if (dashboardGeminiTimer && now - queuedAt >= GEMINI_DASHBOARD_MAX_WAIT_MS) {
+    return 0;
+  }
+
+  return hasFastGeminiDashboardSignal(sourceText, analysis, fallbackInsights)
+    ? GEMINI_DASHBOARD_FAST_DEBOUNCE_MS
+    : GEMINI_DASHBOARD_DEBOUNCE_MS;
+}
+
+function hasFastGeminiDashboardSignal(sourceText, analysis, fallbackInsights) {
+  if (!lastGoodGeminiDashboardInsights && countWords(sourceText || "") >= 14) {
+    return true;
+  }
+
+  return Boolean(
+    (analysis?.decisions || []).length ||
+    (analysis?.risks || []).length ||
+    (analysis?.tasks || []).length ||
+    (fallbackInsights?.importantPoints || []).length ||
+    (fallbackInsights?.conclusions || []).length
+  );
 }
 
 function cancelGeminiDashboardInterpretation() {
