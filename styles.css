@@ -2384,7 +2384,29 @@ tbody tr:hover td {
 #emailsSection .emails-table th,
 #meetingsSection .meetings-table th,
 #notionTasksSection .notion-task-table th {
-  background: #f8fafc;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.7);
+  color: #344054;
+  font-weight: 950;
+  letter-spacing: 0.055em;
+  position: sticky;
+  text-transform: uppercase;
+  top: 0;
+  z-index: 2;
+}
+
+#notionTasksSection .notion-task-table th {
+  background:
+    linear-gradient(180deg, rgba(238, 242, 255, 0.98), rgba(244, 241, 255, 0.98));
+  border-bottom-color: rgba(79, 70, 229, 0.24);
+  color: #4338ca;
+}
+
+#meetingsSection .meetings-table th {
+  background:
+    linear-gradient(180deg, rgba(236, 254, 255, 0.98), rgba(239, 246, 255, 0.98));
+  border-bottom-color: rgba(8, 145, 178, 0.24);
+  color: #0e7490;
 }
 
 .priority {
@@ -3269,6 +3291,22 @@ html[data-theme="dark"] thead th,
 html[data-theme="dark"] .approval-table th {
   background: #111827;
   color: #cbd5e1;
+}
+
+html[data-theme="dark"] #notionTasksSection .notion-task-table th {
+  background:
+    linear-gradient(180deg, rgba(79, 70, 229, 0.34), rgba(15, 23, 42, 0.98));
+  border-bottom-color: rgba(165, 180, 252, 0.32);
+  box-shadow: inset 0 -1px 0 rgba(165, 180, 252, 0.18);
+  color: #c7d2fe;
+}
+
+html[data-theme="dark"] #meetingsSection .meetings-table th {
+  background:
+    linear-gradient(180deg, rgba(8, 145, 178, 0.3), rgba(15, 23, 42, 0.98));
+  border-bottom-color: rgba(103, 232, 249, 0.3);
+  box-shadow: inset 0 -1px 0 rgba(103, 232, 249, 0.16);
+  color: #a5f3fc;
 }
 
 html[data-theme="dark"] tbody tr:hover td {
