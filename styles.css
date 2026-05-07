@@ -3160,12 +3160,45 @@ tr:has(.empty-table) td {
 
 /* Theme mode */
 .topbar {
-  grid-template-columns: minmax(240px, 1fr) auto;
+  align-items: center;
+  grid-template-columns: minmax(250px, 1fr) minmax(420px, 680px) minmax(140px, 1fr);
+}
+
+.brand-lockup {
+  justify-self: start;
+}
+
+.topbar-search {
+  grid-column: 2;
+  justify-self: center;
+  width: min(100%, 680px);
 }
 
 .theme-toggle-button {
+  align-self: center;
+  grid-column: 3;
   justify-self: end;
   white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-search,
+  .theme-toggle-button {
+    grid-column: auto;
+  }
+
+  .topbar-search {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .theme-toggle-button {
+    justify-self: end;
+  }
 }
 
 html[data-theme="dark"] {
