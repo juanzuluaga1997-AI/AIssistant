@@ -151,6 +151,10 @@ a:focus-visible {
   padding: 12px 14px;
 }
 
+.global-search-panel.search-compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .global-search-panel h2 {
   font-size: 1rem;
   margin-bottom: 0;

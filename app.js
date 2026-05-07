@@ -10479,7 +10479,7 @@ function updateLiveInsights() {
   const transcript = (finalTranscript || visibleLiveSource).trim();
 
   if (!visibleTranscript) {
-    liveMeta.textContent = "Transcript saved locally in this browser.";
+    liveMeta.textContent = "";
     cancelGeminiDashboardInterpretation();
     renderMeetingDashboard(null, null, "Ready for notes");
     applyGlobalSearch();
@@ -10562,7 +10562,7 @@ function updateLiveInsights() {
   const insights = analyzeLiveTranscript(actionTranscript);
   const dashboardAnalysis = analyzeNotes(transcript);
 
-  liveMeta.textContent = `${insights.counts.words} words. Saved locally.`;
+  liveMeta.textContent = `${insights.counts.words} words.`;
   renderAnalysis(insights.fullAnalysis, actionTranscript, isListening ? "Updating live" : "Updated from transcript", voiceRoute);
   updateMeetingDashboardFromContext(transcript, dashboardAnalysis, isListening ? "Updating live" : "Updated from transcript");
   if (!isListening && hasEmailIntent(transcript)) {

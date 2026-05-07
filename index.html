@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AIssistant</title>
   <link rel="icon" type="image/svg+xml" href="assets/aissistant-favicon.svg">
-  <link rel="stylesheet" href="styles.css?v=table-branding-1">
+  <link rel="stylesheet" href="styles.css?v=visual-cleanup-1">
 </head>
 <body>
   <div class="app-shell">
@@ -45,8 +45,8 @@
       <div class="status-pill" id="analysisStatus" hidden>Ready</div>
     </header>
 
-    <section class="global-search-panel" aria-labelledby="globalSearchHeading">
-      <div>
+    <section class="global-search-panel search-compact" aria-labelledby="globalSearchHeading">
+      <div hidden>
         <p class="eyebrow">Find meeting details</p>
         <h2 id="globalSearchHeading">Global search</h2>
       </div>
@@ -55,7 +55,7 @@
         <input id="globalSearchInput" type="search" placeholder="Search transcript, dashboard, tasks, meetings..." autocomplete="off">
         <button class="secondary-button" id="clearSearchButton" type="button" disabled>Clear</button>
       </div>
-      <p class="search-status" id="searchStatus" role="status">Search across the meeting workspace.</p>
+      <p class="search-status" id="searchStatus" role="status" hidden>Search across the meeting workspace.</p>
     </section>
 
     <section class="realtime-dashboard" aria-labelledby="dashboardHeading" data-search-scope>
@@ -168,7 +168,7 @@
             </div>
 
             <p class="fallback-notice" id="speechFallback" hidden>Speech recognition is not supported in this browser. Paste a Meet transcript below.</p>
-            <p class="inline-status" id="liveStatus" role="status"></p>
+            <p class="inline-status" id="liveStatus" role="status" hidden></p>
             <div class="mic-recovery-panel" id="micRecoveryPanel" hidden>
               <div>
                 <strong id="micRecoveryTitle">Microphone access needs attention.</strong>
@@ -188,7 +188,7 @@
             <div class="section-title-row">
               <h3 id="transcriptHeading">Live transcript</h3>
               <div class="transcript-actions">
-                <span id="liveMeta">Transcript saved locally in this browser.</span>
+                <span id="liveMeta"></span>
                 <button class="secondary-button compact-button" id="clearTranscriptButton" type="button">Clear transcript / saved data</button>
               </div>
             </div>
@@ -617,6 +617,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=report-actions-1"></script>
+  <script src="app.js?v=visual-cleanup-1"></script>
 </body>
 </html>
