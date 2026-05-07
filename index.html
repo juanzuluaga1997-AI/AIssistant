@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AIssistant</title>
   <link rel="icon" type="image/svg+xml" href="assets/aissistant-favicon.svg">
-  <link rel="stylesheet" href="styles.css?v=topbar-align-1">
+  <link rel="stylesheet" href="styles.css?v=voice-feedback-1">
 </head>
 <body>
   <div class="app-shell">
@@ -157,6 +157,14 @@
               <div class="live-buttons">
                 <button class="primary-button" id="startListeningButton" type="button">Start listening</button>
                 <button class="secondary-button" id="stopListeningButton" type="button" disabled>Stop listening</button>
+              </div>
+            </div>
+
+            <div class="voice-command-feedback" id="voiceCommandFeedback" role="status" aria-live="polite" hidden>
+              <span class="voice-command-feedback-icon" aria-hidden="true"></span>
+              <div>
+                <strong id="voiceCommandFeedbackTitle">Command detected</strong>
+                <p id="voiceCommandFeedbackText">AIssistant is preparing it for review.</p>
               </div>
             </div>
 
@@ -610,6 +618,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=dashboard-speed-1"></script>
+  <script src="app.js?v=voice-feedback-1"></script>
 </body>
 </html>

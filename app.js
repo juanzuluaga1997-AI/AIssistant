@@ -47,6 +47,9 @@ const listeningIndicator = document.getElementById("listeningIndicator");
 const listeningText = document.getElementById("listeningText");
 const speechFallback = document.getElementById("speechFallback");
 const liveStatus = document.getElementById("liveStatus");
+const voiceCommandFeedback = document.getElementById("voiceCommandFeedback");
+const voiceCommandFeedbackTitle = document.getElementById("voiceCommandFeedbackTitle");
+const voiceCommandFeedbackText = document.getElementById("voiceCommandFeedbackText");
 const micRecoveryPanel = document.getElementById("micRecoveryPanel");
 const micRecoveryTitle = document.getElementById("micRecoveryTitle");
 const micRecoveryMessage = document.getElementById("micRecoveryMessage");
@@ -227,6 +230,8 @@ let pendingNotionTasks = [];
 let pendingCsvTasks = [];
 let pendingNotionAction = null;
 let lastAutoNotionReviewSignature = "";
+let voiceCommandFeedbackTimer = null;
+let latestVoiceCommandFeedbackKey = "";
 const hiddenEmailRows = loadHiddenRowKeys(HIDDEN_EMAIL_ROWS_STORAGE_KEY);
 const hiddenNotionTaskRows = loadHiddenRowKeys(HIDDEN_NOTION_TASKS_STORAGE_KEY);
 const hiddenMeetingRows = loadHiddenRowKeys(HIDDEN_MEETING_ROWS_STORAGE_KEY);
@@ -10448,6 +10453,7 @@ function clearTranscriptData(event) {
 
   explicitTranscriptClearInProgress = true;
   try {
+    hideVoiceCommandFeedback();
     finalTranscript = "";
     interimTranscript = "";
     setLiveTranscriptValue("", {
@@ -10474,6 +10480,117 @@ function clearTranscriptData(event) {
   }
 }
 
+function renderVoiceCommandFeedbackForRoute(voiceRoute, sourceText) {
+  if (!isListening) {
+    return;
+  }
+
+  const payload = getVoiceCommandFeedbackPayload(voiceRoute, sourceText);
+  if (!payload) {
+    return;
+  }
+
+  showVoiceCommandFeedback(payload);
+}
+
+function getVoiceCommandFeedbackPayload(voiceRoute, sourceText) {
+  if (!voiceRoute || voiceRoute.blocksExternalActions) {
+    return null;
+  }
+
+  const types = [];
+  const sourceKeys = [];
+
+  if (voiceRoute.intent === "meeting") {
+    types.push("meeting");
+  } else if (voiceRoute.intent === "notion_task" || voiceRoute.intent === "notion_page") {
+    types.push("task");
+  } else if (voiceRoute.intent === "multi_intent" && Array.isArray(voiceRoute.actionClauses)) {
+    voiceRoute.actionClauses.forEach((clause) => {
+      if (clause.intent === "meeting") {
+        types.push("meeting");
+        sourceKeys.push(clause.sourceKey || clause.text || "");
+      } else if (clause.intent === "notion_task" || clause.intent === "notion_page") {
+        types.push("task");
+        sourceKeys.push(clause.sourceKey || clause.text || "");
+      }
+    });
+  }
+
+  const uniqueTypes = Array.from(new Set(types));
+  if (!uniqueTypes.length) {
+    return null;
+  }
+
+  const keySeed = sourceKeys.length
+    ? sourceKeys.join("|")
+    : `${voiceRoute.intent}:${normalizeScheduleText(voiceRoute.cleanedText || sourceText).slice(-180)}`;
+
+  if (uniqueTypes.length > 1) {
+    return {
+      type: "multi",
+      title: "Commands detected",
+      text: "AIssistant is preparing the meeting and Notion task for review.",
+      key: `multi:${normalizeScheduleText(keySeed)}`
+    };
+  }
+
+  if (uniqueTypes[0] === "meeting") {
+    return {
+      type: "meeting",
+      title: "Meeting detected",
+      text: "AIssistant is preparing the meeting for review.",
+      key: `meeting:${normalizeScheduleText(keySeed)}`
+    };
+  }
+
+  return {
+    type: "task",
+    title: "Task detected",
+    text: "AIssistant is preparing the Notion task for review.",
+    key: `task:${normalizeScheduleText(keySeed)}`
+  };
+}
+
+function showVoiceCommandFeedback(payload) {
+  if (!voiceCommandFeedback || !voiceCommandFeedbackTitle || !voiceCommandFeedbackText) {
+    return;
+  }
+
+  if (payload.key && payload.key === latestVoiceCommandFeedbackKey && !voiceCommandFeedback.hidden) {
+    return;
+  }
+
+  latestVoiceCommandFeedbackKey = payload.key || "";
+  voiceCommandFeedback.dataset.type = payload.type || "multi";
+  voiceCommandFeedbackTitle.textContent = payload.title || "Command detected";
+  voiceCommandFeedbackText.textContent = payload.text || "AIssistant is preparing it for review.";
+  voiceCommandFeedback.hidden = false;
+
+  if (voiceCommandFeedbackTimer) {
+    window.clearTimeout(voiceCommandFeedbackTimer);
+  }
+
+  voiceCommandFeedbackTimer = window.setTimeout(() => {
+    if (voiceCommandFeedback) {
+      voiceCommandFeedback.hidden = true;
+    }
+  }, 5200);
+}
+
+function hideVoiceCommandFeedback() {
+  if (voiceCommandFeedbackTimer) {
+    window.clearTimeout(voiceCommandFeedbackTimer);
+    voiceCommandFeedbackTimer = null;
+  }
+
+  latestVoiceCommandFeedbackKey = "";
+
+  if (voiceCommandFeedback) {
+    voiceCommandFeedback.hidden = true;
+  }
+}
+
 function updateLiveInsights() {
   const visibleLiveSource = liveTranscript.value || [finalTranscript, interimTranscript].filter(Boolean).join("\n");
   const visibleTranscript = visibleLiveSource.trim();
@@ -10481,6 +10598,7 @@ function updateLiveInsights() {
 
   if (!visibleTranscript) {
     liveMeta.textContent = "";
+    hideVoiceCommandFeedback();
     cancelGeminiDashboardInterpretation();
     renderMeetingDashboard(null, null, "Ready for notes");
     applyGlobalSearch();
@@ -10496,6 +10614,7 @@ function updateLiveInsights() {
   }
 
   const voiceRoute = buildVoiceCommandRoute(transcript);
+  renderVoiceCommandFeedbackForRoute(voiceRoute, transcript);
   if (voiceRoute.intent === "search_only") {
     activeSearchQuery = voiceRoute.searchQuery;
     globalSearchInput.value = voiceRoute.searchQuery;
