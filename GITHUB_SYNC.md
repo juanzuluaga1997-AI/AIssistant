@@ -47,4 +47,12 @@ git commit -m "Update AIssistant"
 git push
 ```
 
+Or run the protected sync script:
+
+```powershell
+.\scripts\sync-github.ps1 -Message "Update AIssistant"
+```
+
+The script stages only the known app files and never stages `.env`, `node_modules`, browser QA profiles, backups, or local documents.
+
 Do not use destructive Git commands such as `git reset --hard` unless the app has been backed up and the exact reason is clear.
