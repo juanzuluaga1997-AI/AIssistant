@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIssistant</title>
+  <link rel="icon" type="image/svg+xml" href="assets/aissistant-favicon.svg">
+  <link rel="stylesheet" href="styles.css?v=brand-system-5">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-main-row">
+          <div class="brand-mark" aria-hidden="true">
+            <img src="assets/aissistant-logo.svg" alt="">
+          </div>
+          <div class="brand-copy">
+            <h1>AIssistant</h1>
+          </div>
+        </div>
+        <div class="brand-slogan-row">
+          <p class="brand-slogan">Add notes, Review dashboard, and Approve prepared items</p>
+        </div>
+      </div>
+      <nav class="story-nav" aria-label="Workspace status" hidden>
+        <a class="story-chip" href="#liveMode">
+          <span class="story-ring listening-ring" aria-hidden="true"></span>
+          <span>Listening</span>
+        </a>
+        <a class="story-chip" href="#notesHeading">
+          <span class="story-ring notes-ring" aria-hidden="true"></span>
+          <span>Notes</span>
+        </a>
+        <a class="story-chip" href="#notionTasksHeading">
+          <span class="story-ring tasks-ring" aria-hidden="true"></span>
+          <span>Notion Tasks</span>
+        </a>
+        <a class="story-chip" href="#meetingsHeading">
+          <span class="story-ring scheduler-ring" aria-hidden="true"></span>
+          <span>Meetings</span>
+        </a>
+      </nav>
+      <div class="status-pill" id="analysisStatus" hidden>Ready</div>
+    </header>
+
+    <section class="global-search-panel" aria-labelledby="globalSearchHeading">
+      <div>
+        <p class="eyebrow">Find meeting details</p>
+        <h2 id="globalSearchHeading">Global search</h2>
+      </div>
+      <div class="global-search-box">
+        <label class="sr-only" for="globalSearchInput">Search dashboard, transcript, emails, Notion tasks, and meetings</label>
+        <input id="globalSearchInput" type="search" placeholder="Search transcript, dashboard, emails, tasks, meetings..." autocomplete="off">
+        <button class="secondary-button" id="clearSearchButton" type="button" disabled>Clear</button>
+      </div>
+      <p class="search-status" id="searchStatus" role="status">Search across the meeting workspace.</p>
+    </section>
+
+    <section class="realtime-dashboard" aria-labelledby="dashboardHeading" data-search-scope>
+      <div class="dashboard-header">
+        <div>
+          <p class="eyebrow">Real-time intelligence</p>
+          <h2 id="dashboardHeading">Meeting dashboard</h2>
+          <p>Only meeting intelligence appears here.</p>
+        </div>
+      </div>
+
+      <article class="dashboard-card dashboard-concept-card" aria-labelledby="dashboardConceptHeading">
+        <div class="dashboard-concept-copy">
+          <h3 id="dashboardConceptHeading">Concept Breakdown</h3>
+          <p id="dashboardConceptEmpty">No meeting intelligence detected yet.</p>
+        </div>
+        <div class="dashboard-concept-visual" aria-hidden="true">
+          <svg id="dashboardConceptChart" class="concept-donut" viewBox="0 0 120 120" role="img">
+            <circle class="concept-donut-track" cx="60" cy="60" r="44"></circle>
+            <g id="dashboardConceptSlices"></g>
+          </svg>
+          <div class="concept-donut-center">
+            <strong id="dashboardConceptTotal">0</strong>
+            <span id="dashboardConceptLabel">items</span>
+          </div>
+        </div>
+        <ul id="dashboardConceptLegend" class="concept-legend" aria-label="Concept breakdown legend"></ul>
+      </article>
+
+      <div class="dashboard-grid">
+        <article class="dashboard-card">
+          <h3>Decisions</h3>
+          <ul id="dashboardDecisions" class="result-list empty-list">
+            <li>No decisions detected yet.</li>
+          </ul>
+        </article>
+        <article class="dashboard-card">
+          <h3>Risks or Blockers</h3>
+          <ul id="dashboardRisks" class="result-list empty-list">
+            <li>No risks detected yet.</li>
+          </ul>
+        </article>
+        <article class="dashboard-card topics-card">
+          <h3>Relevant</h3>
+          <ul id="dashboardRelevant" class="result-list empty-list">
+            <li>No relevant topics detected yet.</li>
+          </ul>
+        </article>
+        <article class="dashboard-card">
+          <h3>Key Points</h3>
+          <ul id="dashboardKeyPoints" class="result-list empty-list">
+            <li>No key points detected yet.</li>
+          </ul>
+        </article>
+        <article class="dashboard-card">
+          <h3>Conclusions</h3>
+          <ul id="dashboardConclusions" class="result-list empty-list">
+            <li>No conclusions detected yet.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <main class="workspace" data-search-scope>
+      <section class="input-panel" aria-labelledby="notesHeading">
+        <div class="panel-header">
+          <div>
+            <h2 id="notesHeading">Meeting notes</h2>
+            <p>Paste notes, transcript excerpts, or bullets.</p>
+          </div>
+          <button class="secondary-button" id="loadSampleButton" type="button">Load sample data</button>
+        </div>
+
+        <div class="mode-switch" role="tablist" aria-label="Meeting input mode">
+          <button class="mode-tab active" id="manualModeButton" type="button" role="tab" aria-selected="true" aria-controls="manualMode">Manual notes</button>
+          <button class="mode-tab" id="liveModeButton" type="button" role="tab" aria-selected="false" aria-controls="liveMode">Live Notes</button>
+        </div>
+
+        <div class="mode-panel active-mode" id="manualMode" role="tabpanel" aria-labelledby="manualModeButton">
+          <textarea id="notesInput" spellcheck="true" placeholder="Paste meeting notes here..."></textarea>
+
+          <div class="action-row">
+            <button class="primary-button" id="generateButton" type="button">Prepare Everything</button>
+            <span class="inline-status" id="inputStatus" role="status"></span>
+          </div>
+        </div>
+
+        <div class="mode-panel" id="liveMode" role="tabpanel" aria-labelledby="liveModeButton" hidden>
+          <div class="live-control-panel">
+            <p class="mode-helper">Uses your browser microphone; does not join Meet automatically.</p>
+
+            <div class="consent-reminder">
+              <label>
+                <input id="consentCheck" type="checkbox">
+                I have permission from meeting participants to take notes.
+              </label>
+            </div>
+
+            <div class="live-toolbar">
+              <div class="listening-indicator" id="listeningIndicator" aria-live="polite">
+                <span class="indicator-dot" aria-hidden="true"></span>
+                <span id="listeningText">Not listening</span>
+              </div>
+              <div class="live-buttons">
+                <button class="primary-button" id="startListeningButton" type="button">Start listening</button>
+                <button class="secondary-button" id="stopListeningButton" type="button" disabled>Stop listening</button>
+              </div>
+            </div>
+
+            <p class="fallback-notice" id="speechFallback" hidden>Speech recognition is not supported in this browser. Paste a Meet transcript below.</p>
+            <p class="inline-status" id="liveStatus" role="status"></p>
+            <div class="mic-recovery-panel" id="micRecoveryPanel" hidden>
+              <div>
+                <strong id="micRecoveryTitle">Microphone access needs attention.</strong>
+                <p id="micRecoveryMessage">Allow microphone access for localhost:3000, then retry.</p>
+              </div>
+              <ol>
+                <li>Click the lock or tune icon in the browser address bar.</li>
+                <li>Set Microphone to Allow for http://localhost:3000.</li>
+                <li>Click Start listening or Retry microphone permission again; refresh only if the browser still blocks it.</li>
+              </ol>
+              <p class="browser-note">If the Codex in-app browser keeps blocking the microphone, open http://localhost:3000 in Chrome or Edge and use Live Notes there.</p>
+              <button class="secondary-button compact-button" id="retryMicPermissionButton" type="button">Retry microphone permission</button>
+            </div>
+          </div>
+
+          <section class="transcript-section" aria-labelledby="transcriptHeading">
+            <div class="section-title-row">
+              <h3 id="transcriptHeading">Live transcript</h3>
+              <div class="transcript-actions">
+                <span id="liveMeta">Transcript saved locally in this browser.</span>
+                <button class="secondary-button compact-button" id="clearTranscriptButton" type="button">Clear transcript / saved data</button>
+              </div>
+            </div>
+            <textarea id="liveTranscript" spellcheck="true" placeholder="Live transcript will appear here, or paste a Meet transcript manually..."></textarea>
+          </section>
+        </div>
+      </section>
+
+      <section class="output-panel approvals-panel" aria-label="Prepared approvals">
+        <div class="panel-header compact-panel-header" hidden>
+          <div>
+            <h2 id="preparedHeading">Prepared approvals</h2>
+            <p id="resultMeta">Speak or add notes to prepare emails, Notion tasks, and meetings.</p>
+          </div>
+          <div class="output-actions" hidden>
+            <button class="secondary-button" id="copyEmailButton" type="button" disabled>Copy email</button>
+            <button class="secondary-button" id="downloadCsvButton" type="button" disabled>Download CSV</button>
+            <button class="secondary-button" id="exportNotionButton" type="button" disabled>View Notion tasks</button>
+          </div>
+        </div>
+
+        <div hidden>
+          <div id="summaryOutput"></div>
+          <ul id="decisionsOutput"></ul>
+          <ul id="risksOutput"></ul>
+          <table><tbody id="tasksOutput"></tbody></table>
+          <textarea id="emailOutput" readonly></textarea>
+          <p id="notionExportStatus"></p>
+          <section id="csvExportSection">
+            <p id="inlineCsvStatus"></p>
+            <p id="inlineCsvSummary"></p>
+            <table><tbody id="inlineCsvPreviewOutput"></tbody></table>
+            <button id="inlineDownloadCsvButton" type="button" disabled>Download CSV</button>
+          </section>
+        </div>
+
+        <section class="approval-section" id="emailsSection" aria-labelledby="emailsHeading" data-search-scope>
+          <div class="section-title-row">
+            <div>
+              <h3 id="emailsHeading">Emails</h3>
+              <p class="inline-status" id="inlineEmailStatus">No email prepared yet.</p>
+            </div>
+          </div>
+          <div class="table-wrap compact-table-wrap">
+            <table class="approval-table emails-table">
+              <thead>
+                <tr>
+                  <th scope="col">Recipient</th>
+                  <th scope="col">Subject</th>
+                  <th scope="col">Preview</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Approval</th>
+                </tr>
+              </thead>
+              <tbody id="emailRowsOutput">
+                <tr>
+                  <td id="inlineEmailRecipient">Not prepared</td>
+                  <td id="inlineEmailSubject">Not prepared</td>
+                  <td id="inlineEmailPreview">No preview yet.</td>
+                  <td id="inlineEmailState">Not prepared</td>
+                  <td><button class="secondary-button compact-button" id="openGmailButton" type="button" disabled>Open Gmail Draft</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="approval-section" id="notionTasksSection" aria-labelledby="notionTasksHeading" data-search-scope>
+          <div class="section-title-row">
+            <div>
+              <h3 id="notionTasksHeading">Notion Tasks</h3>
+              <p class="inline-status" id="inlineNotionStatus" role="status">No Notion tasks prepared yet.</p>
+            </div>
+            <span class="integration-status" id="notionStatus" role="status">Checking Notion...</span>
+          </div>
+          <div class="table-wrap compact-table-wrap">
+            <table class="approval-table notion-task-table">
+              <thead>
+                <tr>
+                  <th scope="col">Task title</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Urgency</th>
+                  <th scope="col">Responsible</th>
+                  <th scope="col">Due date</th>
+                  <th scope="col">Source</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Approval</th>
+                </tr>
+              </thead>
+              <tbody id="inlineNotionTasksOutput">
+                <tr>
+                  <td colspan="8" class="empty-table">Prepared Notion tasks will appear here.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="inline-page-approval" id="inlineNotionPagePanel" hidden>
+            <div>
+              <h4>Prepared Notion page</h4>
+              <p id="inlineNotionPageTitle">No page prepared.</p>
+              <p id="inlineNotionPagePreview">Voice-created Notion pages will appear here before approval.</p>
+            </div>
+            <div class="inline-action-footer">
+              <span class="inline-status" id="inlineNotionPageStatus">Pending approval</span>
+              <button class="secondary-button" id="inlineConfirmNotionPageButton" type="button" disabled>Confirm Page</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="approval-section" id="meetingsSection" aria-labelledby="meetingsHeading" data-search-scope>
+          <div class="section-title-row">
+            <div>
+              <h3 id="meetingsHeading">Meetings</h3>
+              <p class="inline-status" id="schedulerStatus" role="status">No meeting prepared yet.</p>
+            </div>
+          </div>
+          <div class="calendar-auth-panel compact-auth-panel">
+            <div>
+              <strong>Calendar bridge</strong>
+              <p id="calendarAuthStatus">Checking calendar connection...</p>
+            </div>
+            <div class="calendar-auth-actions">
+              <button class="secondary-button compact-button" id="googleSignInButton" type="button">Sign in with Google</button>
+              <button class="secondary-button compact-button" id="googleLogoutButton" type="button" disabled>Log out</button>
+            </div>
+          </div>
+          <div class="table-wrap compact-table-wrap">
+            <table class="approval-table meetings-table">
+              <thead>
+                <tr>
+                  <th scope="col">Title</th>
+                  <th scope="col">Date</th>
+                  <th scope="col">Start</th>
+                  <th scope="col">Duration</th>
+                  <th scope="col">Attendees</th>
+                  <th scope="col">Agenda</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Approval</th>
+                </tr>
+              </thead>
+              <tbody id="meetingRowsOutput">
+                <tr>
+                  <td id="inlineMeetingTitle">Not prepared</td>
+                  <td id="inlineMeetingDate">Not prepared</td>
+                  <td id="inlineMeetingStartTime">Not prepared</td>
+                  <td id="inlineMeetingDuration">Not prepared</td>
+                  <td id="inlineMeetingAttendees">Not prepared</td>
+                  <td id="inlineMeetingAgenda">Not prepared</td>
+                  <td id="inlineMeetingStatus">Not prepared</td>
+                  <td><button class="primary-button compact-button" id="inlineConfirmMeetingButton" type="button" disabled>Confirm Meeting</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="warning-note" id="inlineMeetingWarning" hidden></p>
+          <div class="schedule-result" id="scheduleResult" hidden></div>
+
+          <details class="manual-correction-panel">
+            <summary>Optional manual correction</summary>
+            <form class="scheduler-form" id="schedulerForm">
+              <div class="form-grid">
+                <label class="field-group">
+                  <span>Meeting title</span>
+                  <input id="meetingTitle" type="text" placeholder="Follow-up meeting">
+                </label>
+
+                <label class="field-group">
+                  <span>Date</span>
+                  <input id="meetingDate" type="date">
+                </label>
+
+                <label class="field-group">
+                  <span>Start time</span>
+                  <input id="meetingStartTime" type="time">
+                </label>
+
+                <label class="field-group">
+                  <span>Duration</span>
+                  <select id="meetingDuration">
+                    <option value="15">15 minutes</option>
+                    <option value="30" selected>30 minutes</option>
+                    <option value="45">45 minutes</option>
+                    <option value="60">60 minutes</option>
+                    <option value="90">90 minutes</option>
+                  </select>
+                </label>
+              </div>
+
+              <label class="field-group">
+                <span>Attendee emails</span>
+                <textarea id="attendeeEmails" rows="3" placeholder="name@company.com, teammate@company.com"></textarea>
+              </label>
+
+              <label class="field-group">
+                <span>Agenda</span>
+                <textarea id="meetingAgenda" rows="3" placeholder="Discuss open blockers, decisions, and next steps."></textarea>
+              </label>
+
+              <div class="action-row">
+                <button class="secondary-button" id="generateMeetingButton" type="button">Prepare Meeting</button>
+              </div>
+            </form>
+          </details>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="scheduleModal" hidden aria-hidden="true" data-search-scope>
+    <div class="confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="scheduleModalTitle">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Permission required</p>
+          <h2 id="scheduleModalTitle">Confirm Meeting</h2>
+        </div>
+        <button class="icon-button" id="closeScheduleModalButton" type="button" aria-label="Close confirmation modal">x</button>
+      </div>
+
+      <p class="modal-warning" id="scheduleModalWarning">No meeting will be created unless you click Confirm Meeting.</p>
+
+      <dl class="meeting-preview">
+        <div>
+          <dt>Meeting title</dt>
+          <dd id="modalMeetingTitle"></dd>
+        </div>
+        <div>
+          <dt>Date</dt>
+          <dd id="modalMeetingDate"></dd>
+        </div>
+        <div>
+          <dt>Start time</dt>
+          <dd id="modalMeetingStartTime"></dd>
+        </div>
+        <div>
+          <dt>Duration</dt>
+          <dd id="modalMeetingDuration"></dd>
+        </div>
+        <div>
+          <dt>End time</dt>
+          <dd id="modalMeetingEndTime"></dd>
+        </div>
+        <div>
+          <dt>Attendees</dt>
+          <dd id="modalMeetingAttendees"></dd>
+        </div>
+        <div>
+          <dt>Agenda</dt>
+          <dd id="modalMeetingAgenda"></dd>
+        </div>
+        <div>
+          <dt>Voice readiness</dt>
+          <dd id="modalMeetingReadiness"></dd>
+        </div>
+        <div>
+          <dt>Prepared summary</dt>
+          <dd id="modalMeetingSummary"></dd>
+        </div>
+      </dl>
+
+      <div class="modal-actions">
+        <button class="secondary-button" id="cancelScheduleButton" type="button">Cancel</button>
+        <button class="primary-button" id="confirmScheduleButton" type="button">Confirm Meeting</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="notionModal" hidden aria-hidden="true" data-search-scope>
+    <div class="confirmation-modal notion-modal" role="dialog" aria-modal="true" aria-labelledby="notionModalTitle">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Review before exporting</p>
+          <h2 id="notionModalTitle">Review Notion action</h2>
+        </div>
+        <button class="icon-button" id="closeNotionModalButton" type="button" aria-label="Close Notion review modal">x</button>
+      </div>
+
+      <p class="modal-warning" id="notionModalWarning">This will send only the reviewed Notion action to your configured Notion workspace. The full transcript will not be exported.</p>
+      <p class="field-help">Notion assignees are filled only when the backend can exactly match a Notion user. Otherwise the assignee text is preserved and the task is marked Needs assignment.</p>
+
+      <div class="notion-review-summary">
+        <span id="notionReviewCount">0 tasks selected.</span>
+        <span id="notionReviewDestination">Destination: Notion task database.</span>
+      </div>
+
+      <dl class="meeting-preview notion-page-preview" id="notionPagePreview" hidden>
+        <div>
+          <dt>Page title</dt>
+          <dd id="notionPageTitlePreview"></dd>
+        </div>
+        <div>
+          <dt>Parent location</dt>
+          <dd id="notionPageParentPreview"></dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd id="notionPageSourcePreview"></dd>
+        </div>
+        <div>
+          <dt>Content preview</dt>
+          <dd id="notionPageContentPreview"></dd>
+        </div>
+        <div>
+          <dt>Related tasks</dt>
+          <dd id="notionPageTasksPreview"></dd>
+        </div>
+        <div>
+          <dt>Created date</dt>
+          <dd id="notionPageCreatedPreview"></dd>
+        </div>
+      </dl>
+
+      <div class="table-wrap notion-review-table-wrap">
+        <table class="notion-review-table">
+          <thead>
+            <tr>
+              <th scope="col">Export</th>
+              <th scope="col">Task</th>
+              <th scope="col">Assignee text</th>
+              <th scope="col">Assignee email</th>
+              <th scope="col">Assignment status</th>
+              <th scope="col">Priority</th>
+              <th scope="col">Due date</th>
+              <th scope="col">Meeting / source</th>
+              <th scope="col">Confidence</th>
+              <th scope="col">Notes</th>
+            </tr>
+          </thead>
+          <tbody id="notionTasksOutput">
+            <tr>
+              <td colspan="10" class="empty-table">No tasks ready for export.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="inline-status" id="notionModalStatus" role="status"></p>
+
+      <div class="modal-actions">
+        <button class="secondary-button" id="cancelNotionButton" type="button">Cancel</button>
+        <button class="primary-button" id="confirmNotionExportButton" type="button">Confirm export to Notion</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="csvModal" hidden aria-hidden="true" data-search-scope>
+    <div class="confirmation-modal csv-modal" role="dialog" aria-modal="true" aria-labelledby="csvModalTitle">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Review before downloading</p>
+          <h2 id="csvModalTitle">Download task CSV</h2>
+        </div>
+        <button class="icon-button" id="closeCsvModalButton" type="button" aria-label="Close CSV review modal">x</button>
+      </div>
+
+      <p class="modal-warning">This downloads a local CSV file from the prepared action items. Nothing is sent externally.</p>
+
+      <div class="notion-review-summary">
+        <span id="csvReviewCount">0 tasks ready.</span>
+        <span>Destination: local CSV download.</span>
+      </div>
+
+      <div class="table-wrap csv-preview-table-wrap">
+        <table class="csv-preview-table">
+          <thead>
+            <tr>
+              <th scope="col">Task</th>
+              <th scope="col">Owner</th>
+              <th scope="col">Suggested date</th>
+              <th scope="col">Priority</th>
+            </tr>
+          </thead>
+          <tbody id="csvPreviewOutput">
+            <tr>
+              <td colspan="4" class="empty-table">No tasks ready for CSV download.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="inline-status" id="csvModalStatus" role="status"></p>
+
+      <div class="modal-actions">
+        <button class="secondary-button" id="cancelCsvButton" type="button">Cancel</button>
+        <button class="primary-button" id="confirmCsvDownloadButton" type="button">Download CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="gmailModal" hidden aria-hidden="true" data-search-scope>
+    <div class="confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="gmailModalTitle">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Review before opening Gmail</p>
+          <h2 id="gmailModalTitle">Open Gmail Draft</h2>
+        </div>
+        <button class="icon-button" id="closeGmailModalButton" type="button" aria-label="Close Gmail review modal">x</button>
+      </div>
+
+      <p class="modal-warning">The app will not send this email automatically. Gmail will open a browser compose window so you can review recipients, edit the message, and choose whether to send it yourself.</p>
+
+      <div class="gmail-review-form">
+        <label class="field-group">
+          <span>Recipients (Gmail To field)</span>
+          <input id="gmailRecipientsInput" type="text" placeholder="name@company.com, teammate@company.com">
+          <small class="field-help">These people will appear in Gmail's To field. Review carefully before sending from Gmail.</small>
+        </label>
+        <p class="field-help" id="gmailRecipientsWarning" hidden>No recipient detected. Gmail will open without a To field, so you can add recipients manually.</p>
+
+        <label class="field-group">
+          <span>Subject</span>
+          <input id="gmailSubjectInput" type="text" placeholder="Meeting follow-up and action plan">
+        </label>
+
+        <label class="field-group">
+          <span>Email body</span>
+          <textarea id="gmailBodyInput" rows="10" placeholder="Follow-up email body"></textarea>
+        </label>
+
+        <p class="inline-status" id="gmailStatus" role="status"></p>
+      </div>
+
+      <div class="modal-actions">
+        <button class="secondary-button" id="cancelGmailButton" type="button">Cancel</button>
+        <button class="primary-button" id="confirmOpenGmailButton" type="button">Open Gmail Draft</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=p0-stabilization-1"></script>
+</body>
+</html>
