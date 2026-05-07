@@ -10862,6 +10862,7 @@ function buildDashboardReportModel() {
     status: normalizeBusinessEnglishText(dashboardStatus?.textContent || "Current dashboard export"),
     total,
     categories,
+    actionSections: buildDashboardReportActionSections(),
     sections: [
       {
         title: "Decisions",
@@ -10885,6 +10886,61 @@ function buildDashboardReportModel() {
       }
     ]
   };
+}
+
+function buildDashboardReportActionSections() {
+  return [
+    {
+      title: "Prepared Notion Tasks",
+      emptyText: "No prepared Notion tasks yet.",
+      columns: ["Task", "Type", "Priority", "Responsible", "Due date", "Source", "Status"],
+      rows: getDashboardReportNotionTasks()
+    },
+    {
+      title: "Prepared Meetings",
+      emptyText: "No prepared meetings yet.",
+      columns: ["Title", "Date", "Start", "Duration", "Attendees", "Agenda", "Status"],
+      rows: getDashboardReportMeetings()
+    }
+  ];
+}
+
+function getDashboardReportNotionTasks() {
+  return (pendingNotionTasks || [])
+    .filter((task) => !hiddenNotionTaskRows.has(task.signature || getNotionTaskSignature(task)))
+    .map((task) => [
+      getReportCellValue(task.task, "Untitled task"),
+      getReportCellValue(task.type, "Task"),
+      getReportCellValue(task.priority, "Medium"),
+      getReportCellValue(task.assigneeText || task.assigneeEmail, "Unassigned"),
+      getReportCellValue(task.dueDate, "No due date"),
+      getReportCellValue(task.source, "Action plan"),
+      getReportCellValue(
+        task.confirmationState === "Pending approval"
+          ? (task.assignmentStatus || "Pending approval")
+          : task.confirmationState,
+        "Pending approval"
+      )
+    ]);
+}
+
+function getDashboardReportMeetings() {
+  return (preparedMeetingRows || [])
+    .filter((proposal) => !isMeetingRowHidden(proposal))
+    .map((proposal) => [
+      getReportCellValue(proposal.title, "Untitled meeting"),
+      getReportCellValue(proposal.date ? formatDisplayDate(proposal.date) : "", "Missing date"),
+      getReportCellValue(getMeetingStartDisplay(proposal), "Missing start time"),
+      getReportCellValue(getMeetingDurationDisplay(proposal), "30 minutes"),
+      getReportCellValue(proposal.attendees?.length ? proposal.attendees.join(", ") : "", "Self only"),
+      getReportCellValue(proposal.agenda, "No agenda"),
+      getReportCellValue(proposal.confirmationState || getInitialMeetingState(proposal), "Pending approval")
+    ]);
+}
+
+function getReportCellValue(value, fallback) {
+  const text = normalizeBusinessEnglishBlock(Array.isArray(value) ? value.join(", ") : value);
+  return text || fallback;
 }
 
 function buildDashboardReportEmailBody(report) {
@@ -10923,6 +10979,22 @@ function buildDashboardReportEmailBody(report) {
     lines.push(`- ${section.emptyText}`);
   });
 
+  report.actionSections.forEach((section) => {
+    lines.push("", `${section.title}:`);
+
+    if (section.rows.length) {
+      section.rows.forEach((row) => {
+        const details = row
+          .map((cell, index) => `${section.columns[index]}: ${cell}`)
+          .join("; ");
+        lines.push(`- ${details}`);
+      });
+      return;
+    }
+
+    lines.push(`- ${section.emptyText}`);
+  });
+
   lines.push("", "Best,");
   return lines.join("\n");
 }
@@ -10949,6 +11021,21 @@ function buildDashboardReportHtml(report) {
         <h2>${escapeHtml(section.title)}</h2>
         ${section.items.length
           ? `<ul>${section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+          : `<p class="empty">${escapeHtml(section.emptyText)}</p>`}
+      </section>`).join("");
+  const actionSections = report.actionSections.map((section) => `
+      <section class="report-section">
+        <h2>${escapeHtml(section.title)}</h2>
+        ${section.rows.length
+          ? `<div class="report-table-wrap"><table class="report-table">
+              <thead>
+                <tr>${section.columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr>
+              </thead>
+              <tbody>
+                ${section.rows.map((row) => `
+                  <tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}
+              </tbody>
+            </table></div>`
           : `<p class="empty">${escapeHtml(section.emptyText)}</p>`}
       </section>`).join("");
 
@@ -11034,6 +11121,32 @@ function buildDashboardReportHtml(report) {
       text-align: right;
       width: 72px;
     }
+    .category-table td:last-child {
+      font-weight: 700;
+      text-align: right;
+      width: 72px;
+    }
+    .report-table-wrap {
+      overflow-x: auto;
+    }
+    .report-table {
+      font-size: 13px;
+      min-width: 760px;
+    }
+    .report-table th {
+      background: #f8fafc;
+      border-bottom: 1px solid #d0d5dd;
+      color: #475467;
+      font-size: 12px;
+      padding: 8px 6px;
+      text-align: left;
+      text-transform: uppercase;
+    }
+    .report-table td:last-child {
+      font-weight: 400;
+      text-align: left;
+      width: auto;
+    }
     .swatch {
       border-radius: 999px;
       display: inline-block;
@@ -11105,11 +11218,12 @@ function buildDashboardReportHtml(report) {
           <span>${report.total === 1 ? "item" : "items"}</span>
         </div>
       </div>
-      <table>
+      <table class="category-table">
         <tbody>${categoryRows}</tbody>
       </table>
     </section>
     ${sections}
+    ${actionSections}
   </main>
 </body>
 </html>`;
