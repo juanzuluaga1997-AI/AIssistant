@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AIssistant</title>
   <link rel="icon" type="image/svg+xml" href="assets/aissistant-favicon.svg">
-  <link rel="stylesheet" href="styles.css?v=voice-feedback-1">
+  <link rel="stylesheet" href="styles.css?v=dashboard-history-1">
 </head>
 <body>
   <div class="app-shell">
@@ -58,14 +58,18 @@
           <h2 id="dashboardHeading">Meeting dashboard</h2>
           <p>Only meeting intelligence appears here.</p>
         </div>
-        <details class="dashboard-report-menu">
-          <summary class="secondary-button compact-button dashboard-report-button">Export report</summary>
-          <div class="dashboard-report-options" role="menu" aria-label="Dashboard report export options">
-            <button class="secondary-button compact-button" id="dashboardReportPdfButton" type="button">Save PDF</button>
-            <button class="secondary-button compact-button" id="dashboardReportEmailButton" type="button">Send by email</button>
-            <button class="secondary-button compact-button" id="dashboardReportHtmlButton" type="button">Download HTML</button>
-          </div>
-        </details>
+        <div class="dashboard-actions" aria-label="Dashboard actions">
+          <button class="secondary-button compact-button" id="saveDashboardHistoryButton" type="button">Save</button>
+          <button class="secondary-button compact-button" id="openDashboardHistoryButton" type="button" aria-expanded="false" aria-controls="dashboardHistoryPanel">History</button>
+          <details class="dashboard-report-menu">
+            <summary class="secondary-button compact-button dashboard-report-button">Export report</summary>
+            <div class="dashboard-report-options" role="menu" aria-label="Dashboard report export options">
+              <button class="secondary-button compact-button" id="dashboardReportPdfButton" type="button">Save PDF</button>
+              <button class="secondary-button compact-button" id="dashboardReportEmailButton" type="button">Send by email</button>
+              <a class="secondary-button compact-button" id="dashboardReportHtmlButton" href="about:blank" target="_blank" rel="noopener">Open report</a>
+            </div>
+          </details>
+        </div>
       </div>
 
       <article class="dashboard-card dashboard-concept-card" aria-labelledby="dashboardConceptHeading">
@@ -112,6 +116,25 @@
           </ul>
         </article>
       </div>
+
+      <section class="dashboard-history-panel" id="dashboardHistoryPanel" aria-labelledby="dashboardHistoryHeading" data-search-scope hidden>
+        <div class="dashboard-history-header">
+          <div>
+            <p class="eyebrow">Saved intelligence</p>
+            <h3 id="dashboardHistoryHeading">Dashboard history</h3>
+            <p id="dashboardHistoryStatus">No saved dashboards yet.</p>
+          </div>
+          <button class="secondary-button compact-button" id="closeDashboardHistoryButton" type="button">Close</button>
+        </div>
+        <div class="dashboard-history-layout">
+          <div class="dashboard-history-list" id="dashboardHistoryList" aria-label="Saved dashboard snapshots">
+            <p class="empty-table">No saved dashboards yet.</p>
+          </div>
+          <div class="dashboard-history-preview" id="dashboardHistoryPreview">
+            <p class="empty-table">Select a saved dashboard to view it.</p>
+          </div>
+        </div>
+      </section>
     </section>
 
     <main class="workspace" data-search-scope>
@@ -618,6 +641,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=voice-feedback-1"></script>
+  <script src="app.js?v=dashboard-history-1"></script>
 </body>
 </html>

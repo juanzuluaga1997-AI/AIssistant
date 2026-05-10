@@ -79,6 +79,13 @@ const dashboardConceptTotal = document.getElementById("dashboardConceptTotal");
 const dashboardConceptLabel = document.getElementById("dashboardConceptLabel");
 const dashboardConceptEmpty = document.getElementById("dashboardConceptEmpty");
 const dashboardReportMenu = document.querySelector(".dashboard-report-menu");
+const saveDashboardHistoryButton = document.getElementById("saveDashboardHistoryButton");
+const openDashboardHistoryButton = document.getElementById("openDashboardHistoryButton");
+const closeDashboardHistoryButton = document.getElementById("closeDashboardHistoryButton");
+const dashboardHistoryPanel = document.getElementById("dashboardHistoryPanel");
+const dashboardHistoryStatus = document.getElementById("dashboardHistoryStatus");
+const dashboardHistoryList = document.getElementById("dashboardHistoryList");
+const dashboardHistoryPreview = document.getElementById("dashboardHistoryPreview");
 const dashboardReportPdfButton = document.getElementById("dashboardReportPdfButton");
 const dashboardReportEmailButton = document.getElementById("dashboardReportEmailButton");
 const dashboardReportHtmlButton = document.getElementById("dashboardReportHtmlButton");
@@ -156,6 +163,8 @@ const csvModalStatus = document.getElementById("csvModalStatus");
 const HIDDEN_EMAIL_ROWS_STORAGE_KEY = "aiMeetingAssistant.hiddenEmailRows";
 const HIDDEN_NOTION_TASKS_STORAGE_KEY = "aiMeetingAssistant.hiddenNotionTaskRows";
 const HIDDEN_MEETING_ROWS_STORAGE_KEY = "aiMeetingAssistant.hiddenMeetingRows";
+const DASHBOARD_HISTORY_STORAGE_KEY = "aiMeetingAssistant.dashboardHistory";
+const DASHBOARD_HISTORY_MAX_ENTRIES = 60;
 
 let latestTasks = [];
 let latestEmail = "";
@@ -178,6 +187,8 @@ let dashboardGeminiQueuedAt = 0;
 let lastGoodGeminiDashboardInsights = null;
 let lastGoodGeminiDashboardSourceText = "";
 const attemptedGeminiDashboardSourceKeys = new Set();
+let dashboardHistoryEntries = [];
+let selectedDashboardHistoryId = "";
 let explicitTranscriptClearInProgress = false;
 let latestAnalysis = null;
 let latestSourceText = "";
@@ -254,6 +265,7 @@ const GEMINI_EMAIL_COMPOSE_ENDPOINT = "/api/gemini/compose-email-test";
 const GEMINI_EMAIL_INTERPRET_ENDPOINT = "/api/gemini/interpret-email-context";
 const GEMINI_DASHBOARD_INTERPRET_ENDPOINT = "/api/gemini/interpret-dashboard-context";
 const GEMINI_EMAIL_MAX_DRAFTS_PER_SOURCE = 2;
+const EMAIL_INTENT_DETECTION_ENABLED = false;
 const GEMINI_EMAIL_CLIENT_ENABLED = false;
 const GEMINI_EMAIL_INTERPRETATION_CLIENT_ENABLED = true;
 const GEMINI_EMAIL_ONLY_TEMPLATE_FILLING = true;
@@ -546,10 +558,21 @@ dashboardReportEmailButton?.addEventListener("click", () => {
   closeDashboardReportMenu();
 });
 
+dashboardReportMenu?.addEventListener("toggle", () => {
+  if (dashboardReportMenu.open) {
+    prepareDashboardReportLink();
+  }
+});
+
 dashboardReportHtmlButton?.addEventListener("click", () => {
   exportDashboardReportHtml();
-  closeDashboardReportMenu();
+  window.setTimeout(closeDashboardReportMenu, 0);
 });
+
+saveDashboardHistoryButton?.addEventListener("click", saveCurrentDashboardToHistory);
+openDashboardHistoryButton?.addEventListener("click", toggleDashboardHistoryPanel);
+closeDashboardHistoryButton?.addEventListener("click", hideDashboardHistoryPanel);
+dashboardHistoryList?.addEventListener("click", handleDashboardHistoryListClick);
 
 generateButton.addEventListener("click", () => {
   const sourceText = getCurrentMeetingSourceText();
@@ -699,6 +722,7 @@ window.addEventListener("beforeunload", () => {
 
 initializeLiveMode();
 initializeThemeMode();
+initializeDashboardHistory();
 initializeScheduler();
 refreshAuthStatus();
 refreshNotionStatus();
@@ -950,24 +974,8 @@ function prepareDownstreamActions(sourceText, analysis, routingContext = null) {
 
   if (voiceRoute?.blocksExternalActions) {
     if (voiceRoute.intent === "notes_only") {
-      if (prepareContextAwareEmailRows(sourceText, analysis)) {
-        activateGeminiEmailCompositionForSource(sourceText, analysis, {
-          contextOnly: true
-        });
-        return;
-      }
-
-      if (shouldRequestGeminiImplicitEmail(sourceText, analysis)) {
-        clearPreparedRowsOutsideVoiceIntent("email");
-        emailPreparationEnabled = true;
-        renderPreparedEmailRows();
-        setInputStatus("Checking whether the context needs a useful email draft.", false);
-        setInlineEmailStatus("Checking whether the context needs a useful email draft.", false);
-        activateGeminiEmailCompositionForSource(sourceText, analysis, {
-          contextOnly: true
-        });
-        return;
-      }
+      clearPreparedExternalActionRows(voiceRoute.statusMessage, false);
+      return;
     }
 
     clearPreparedExternalActionRows(voiceRoute.statusMessage, voiceRoute.intent === "ambiguous");
@@ -984,7 +992,7 @@ function prepareDownstreamActions(sourceText, analysis, routingContext = null) {
     : hasNotionTaskOrPageIntent(sourceText) || mandatoryNotionTaskSegments.length > 0;
   const allowEmail = voiceRoute
     ? voiceRoute.intent === "email"
-    : focusedIntent === "email" || focusedIntent === "general" || hasExplicitEmailRequest;
+    : hasExplicitEmailRequest;
   const allowNotion = voiceRoute
     ? voiceRoute.intent === "notion_task" || voiceRoute.intent === "notion_page"
     : focusedIntent === "notion" || focusedIntent === "general" || hasExplicitNotionRequest;
@@ -1040,10 +1048,6 @@ function prepareDownstreamActions(sourceText, analysis, routingContext = null) {
 
   if (allowEmail && hasExplicitEmailRequest) {
     prepareExplicitEmailRowsFromSource(sourceText, analysis, "Prepared from a clear email request.");
-  } else if (allowEmail) {
-    activateGeminiEmailCompositionForSource(sourceText, analysis, {
-      contextOnly: true
-    });
   }
 
   if (pendingNotionAction) {
@@ -1272,9 +1276,14 @@ function hasNaturalMeetingClauseIntent(sourceText) {
 }
 
 function hasNaturalEmailClauseIntent(sourceText) {
+  if (!EMAIL_INTENT_DETECTION_ENABLED) {
+    return false;
+  }
+
   const text = normalizeEmailIntentText(sourceText);
   return hasEmailIntent(text) ||
-    /\b(?:(?:can|could)\s+you\s+|let'?s\s+|(?:i|we)\s+(?:want|need|would\s+like|will|am\s+going|are\s+going)\s+(?:you\s+)?(?:to\s+)?)?(?:write|send|draft|compose|create|prepare|make)\b[^.\n]{0,110}\b(?:email|gmail|mail|message)\b/i.test(text);
+    splitEmailIntentClauses(text).some((clause) => !hasNegatedEmailIntent(clause) &&
+      /\b(?:(?:can|could)\s+you\s+|let'?s\s+|(?:i|we)\s+(?:want|need|would\s+like|will|am\s+going|are\s+going)\s+(?:you\s+)?(?:to\s+)?)?(?:write|send|draft|compose|create|prepare|make)\b[^.\n]{0,110}\b(?:email|gmail|mail|message)\b/i.test(clause));
 }
 
 function hasNaturalNotionTaskClauseIntent(sourceText) {
@@ -1713,12 +1722,33 @@ function isFocusedVoiceCommand(sourceText) {
 }
 
 function hasEmailIntent(sourceText) {
+  if (!EMAIL_INTENT_DETECTION_ENABLED) {
+    return false;
+  }
+
   const text = normalizeEmailIntentText(sourceText);
+  return splitEmailIntentClauses(text).some(hasPositiveEmailIntentClause);
+}
+
+function splitEmailIntentClauses(sourceText) {
+  return String(sourceText || "")
+    .split(/\n+|(?<=[.!?])\s+|;\s+|\b(?:but|however)\b/i)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+}
+
+function hasPositiveEmailIntentClause(sourceText) {
+  const text = normalizeEmailIntentText(sourceText).trim();
+  if (!text || hasNegatedEmailIntent(text)) {
+    return false;
+  }
+
   const emailNoun = "(?:gmail|gmails|email|emails|mail|message|messages)";
+  const blockedRecipientWords = "(?:is|are|was|were|be|been|being|section|feature|context|draft|hidden|disabled|off|inactive|needed|required|necessary|optional|not|no|none|without|should|must|will|can|could|does|do|did|still|already|currently|only)";
   return new RegExp(`\\b(?:open|create|draft|write|send|prepare|compose|make)\\s+(?:(?:a|an|new|two|three|four|five|six|seven|eight|nine|ten|\\d+)\\s+)?${emailNoun}\\b`, "i").test(text) ||
     new RegExp(`\\b(?:open|create|draft|write|send|prepare|compose|make)\\b[^.\\n]{0,100}\\b${emailNoun}\\b`, "i").test(text) ||
     /\b(?:need|needs|want|wants|wanted|have|has|had)\s+to\s+(?:email|message)\b/i.test(text) ||
-    /\b(?:email|message)\s+[A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+){0,2}\b/i.test(text) ||
+    new RegExp(`\\b(?:email|message)\\s+(?!${blockedRecipientWords}\\b)(?:the\\s+)?(?:client|customer|team|finance|hr|store|[A-Za-z][a-z]+(?:\\s+[A-Za-z][a-z]+){0,2})\\b`, "i").test(text) ||
     /\b(?:send|write|draft|prepare|create|make)\s+(?:a\s+)?follow[- ]?up\b/i.test(text) ||
     /\b(?:send|write|draft|prepare|create|compose|make)\s+(?:a\s+|an\s+)?(?:summary|recap|follow[- ]?up|update)\s+(?:email|mail|message)\b/i.test(text) ||
     /\b(?:gmail\s+draft|email\s+draft|follow[- ]?up\s+email)\b/i.test(text) ||
@@ -1726,7 +1756,28 @@ function hasEmailIntent(sourceText) {
     new RegExp("\\b(?:summary|summarize|summarizing|recap)\\b[^.\\n]{0,120}\\b" + emailNoun + "\\b", "i").test(text);
 }
 
+function hasNegatedEmailIntent(sourceText) {
+  const text = normalizeEmailIntentText(sourceText);
+  if (!text) {
+    return false;
+  }
+
+  const emailNoun = "(?:gmail|gmails|email|emails|mail|message|messages)";
+  const emailAction = "(?:open|create|draft|write|send|prepare|compose|make|email|message)";
+  const emailActionRequest = `(?:${emailAction}\\b[^.\\n]{0,100}\\b${emailNoun}|${emailNoun}\\b[^.\\n]{0,70}\\b(?:draft|summary|recap|follow[- ]?up|update))`;
+
+  return new RegExp(`\\bno\\s+${emailNoun}\\s+(?:is\\s+|are\\s+)?(?:needed|required|necessary)\\b`, "i").test(text) ||
+    new RegExp(`\\b(?:${emailNoun})\\s+(?:is\\s+|are\\s+)?(?:not\\s+)?(?:needed|required|necessary)\\b`, "i").test(text) ||
+    new RegExp(`\\b(?:no\\s+need|do\\s+not\\s+need|don't\\s+need|dont\\s+need|does\\s+not\\s+need|doesn't\\s+need|not\\s+necessary|not\\s+required)\\b[^.\\n]{0,80}\\b(?:to\\s+)?${emailAction}\\b`, "i").test(text) ||
+    new RegExp(`\\b(?:do\\s+not(?!\\s+forget)|don't(?!\\s+forget)|dont(?!\\s+forget)|should\\s+not|shouldn't|must\\s+not|mustn't|never|cannot|can't)\\b[^.\\n]{0,70}\\b${emailActionRequest}\\b`, "i").test(text) ||
+    new RegExp(`\\b${emailNoun}\\s+(?:section|feature|area|panel)\\b[^.\\n]{0,80}\\b(?:hidden|disabled|off|inactive|deactivated)\\b`, "i").test(text);
+}
+
 function hasLeadingEmailCommand(sourceText) {
+  if (!EMAIL_INTENT_DETECTION_ENABLED) {
+    return false;
+  }
+
   return /^\s*(?:open|create|draft|write|send|prepare|compose|make)\s+(?:(?:a|an|new|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+)?(?:gmail|gmails|email|emails|mail|message|messages)\b/i.test(normalizeEmailIntentText(sourceText));
 }
 
@@ -4023,10 +4074,14 @@ function buildPreparedEmailRowsFromCurrentSource() {
 }
 
 function prepareContextAwareEmailRows(sourceText, analysis) {
+  if (!extractEmailCommandSegments(sourceText).length) {
+    return false;
+  }
+
   if (GEMINI_EMAIL_ONLY_TEMPLATE_FILLING) {
     return prepareGeminiOnlyEmailRowsFromSource(sourceText, analysis, "Prepared after Gemini confirms this context needs an email.", {
       contextOnly: true,
-      requireEmailIntent: false
+      requireEmailIntent: true
     });
   }
 
@@ -4145,9 +4200,13 @@ function prepareMeetingSummaryEmailFromNotes(sourceText, analysis, reason = "Pre
     return false;
   }
 
+  if (!hasEmailIntent(source)) {
+    return false;
+  }
+
   emailPreparationEnabled = true;
   return prepareGeminiOnlyEmailRowsFromSource(source, analysis || analyzeNotes(source), reason, {
-    requireEmailIntent: false,
+    requireEmailIntent: true,
     contextOnly: false,
     forceMeetingSummary: true
   });
@@ -4396,6 +4455,10 @@ function dedupeGeminiEmailCandidates(candidates) {
 function shouldRequestGeminiImplicitEmail(sourceText, analysis) {
   const text = normalizeBusinessEnglishBlock(sourceText);
   if (!text || hasEmailDraftBlockingNoise(text)) {
+    return false;
+  }
+
+  if (!hasEmailIntent(text)) {
     return false;
   }
 
@@ -4985,7 +5048,7 @@ function isCurrentGeminiEmailSource(sourceText) {
 }
 
 async function requestGeminiEmailInterpretationForRow(emailRow, sourceText, analysis) {
-  if (!GEMINI_EMAIL_INTERPRETATION_CLIENT_ENABLED || !emailPreparationEnabled || !emailRow?.emailV1Template) {
+  if (!EMAIL_INTENT_DETECTION_ENABLED || !GEMINI_EMAIL_INTERPRETATION_CLIENT_ENABLED || !emailPreparationEnabled || !emailRow?.emailV1Template) {
     return;
   }
 
@@ -5618,7 +5681,12 @@ function splitEmailTranscriptIntoChunks(sourceText) {
   const normalized = normalizeEmailIntentText(sourceText)
     .replace(/\b(?:on\s+another\s+topic|another\s+thing|the\s+next\s+thing|next\s+thing)\s*,?\s*/gi, ". ")
     .replace(/\b(?:then|and then|also|now|regarding|about|ok(?:ay)?|perfect|yeah|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth)\s*,?\s+(?=(?:i\s+)?(?:also\s+)?(?:want|need|would\s+like|have)?\s*(?:to\s+)?(?:open|create|draft|write|send|prepare|compose)\b)/gi, ". ")
-    .replace(/\s+(?=(?:i\s+)?(?:want|need|would\s+like|have)?\s*(?:to\s+)?(?:open|create|draft|write|send|prepare|compose)\s+(?:(?:a|an|new)\s+)?(?:gmail|email|message)\b)/gi, ". ");
+    .replace(/\s+(?=(?:i\s+)?(?:want|need|would\s+like|have)?\s*(?:to\s+)?(?:open|create|draft|write|send|prepare|compose)\s+(?:(?:a|an|new)\s+)?(?:gmail|email|message)\b)/gi, (match, offset, input) => {
+      const prefix = input.slice(Math.max(0, offset - 40), offset);
+      return /\b(?:do\s+not|don't|dont|should\s+not|shouldn't|must\s+not|mustn't|cannot|can't|never|no\s+need\s+to|do\s+not\s+need\s+to|don't\s+need\s+to|dont\s+need\s+to)\s*$/i.test(prefix)
+        ? match
+        : ". ";
+    });
 
   return normalized
     .split(/\n+/)
@@ -8707,7 +8775,10 @@ function getAissistantTaskReviewInfo(task) {
 }
 
 function buildNotionExportTaskPayload(task) {
-  return addAissistantTaskMetadata(task);
+  return {
+    ...addAissistantTaskMetadata(task),
+    notes: ""
+  };
 }
 
 function setNotionExportStatus(message, isError) {
@@ -10922,6 +10993,329 @@ function normalizeDashboardInsightList(items, category) {
     .slice(0, limit);
 }
 
+function initializeDashboardHistory() {
+  dashboardHistoryEntries = loadDashboardHistoryEntries();
+  selectedDashboardHistoryId = dashboardHistoryEntries[0]?.id || "";
+  renderDashboardHistoryList();
+  renderDashboardHistoryPreview(getSelectedDashboardHistoryEntry());
+  updateDashboardHistoryPanelState(false);
+}
+
+function saveCurrentDashboardToHistory() {
+  const entry = buildDashboardHistoryEntry();
+  dashboardHistoryEntries = [entry, ...dashboardHistoryEntries]
+    .slice(0, DASHBOARD_HISTORY_MAX_ENTRIES);
+  selectedDashboardHistoryId = entry.id;
+  persistDashboardHistoryEntries();
+  renderDashboardHistoryList();
+  renderDashboardHistoryPreview(entry);
+  setInputStatus(`Dashboard saved to history at ${formatDashboardHistoryDate(entry.savedAt)}.`, false);
+}
+
+function toggleDashboardHistoryPanel() {
+  if (!dashboardHistoryPanel) {
+    return;
+  }
+
+  if (dashboardHistoryPanel.hidden) {
+    showDashboardHistoryPanel();
+    return;
+  }
+
+  hideDashboardHistoryPanel();
+}
+
+function showDashboardHistoryPanel() {
+  if (!dashboardHistoryPanel) {
+    return;
+  }
+
+  if (!selectedDashboardHistoryId && dashboardHistoryEntries.length) {
+    selectedDashboardHistoryId = dashboardHistoryEntries[0].id;
+  }
+
+  renderDashboardHistoryList();
+  renderDashboardHistoryPreview(getSelectedDashboardHistoryEntry());
+  updateDashboardHistoryPanelState(true);
+}
+
+function hideDashboardHistoryPanel() {
+  updateDashboardHistoryPanelState(false);
+}
+
+function updateDashboardHistoryPanelState(isOpen) {
+  if (dashboardHistoryPanel) {
+    dashboardHistoryPanel.hidden = !isOpen;
+  }
+
+  if (openDashboardHistoryButton) {
+    openDashboardHistoryButton.setAttribute("aria-expanded", String(Boolean(isOpen)));
+  }
+}
+
+function handleDashboardHistoryListClick(event) {
+  const button = event.target.closest("[data-history-id]");
+  if (!button) {
+    return;
+  }
+
+  const entry = dashboardHistoryEntries.find((item) => item.id === button.dataset.historyId);
+  if (!entry) {
+    return;
+  }
+
+  selectedDashboardHistoryId = entry.id;
+  renderDashboardHistoryList();
+  renderDashboardHistoryPreview(entry);
+  setDashboardHistoryStatus(`Viewing saved dashboard from ${formatDashboardHistoryDate(entry.savedAt)}.`);
+}
+
+function buildDashboardHistoryEntry() {
+  const report = buildDashboardReportModel();
+  const savedAt = new Date();
+  return {
+    id: `dashboard-history-${savedAt.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+    savedAt: savedAt.toISOString(),
+    status: normalizeBusinessEnglishText(report.status || "Saved dashboard"),
+    total: Number(report.total) || 0,
+    categories: normalizeDashboardHistoryCategories(report.categories),
+    sections: normalizeDashboardHistorySections(report.sections)
+  };
+}
+
+function loadDashboardHistoryEntries() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DASHBOARD_HISTORY_STORAGE_KEY) || "[]");
+    return normalizeDashboardHistoryEntries(parsed);
+  } catch (error) {
+    return [];
+  }
+}
+
+function persistDashboardHistoryEntries() {
+  try {
+    localStorage.setItem(DASHBOARD_HISTORY_STORAGE_KEY, JSON.stringify(dashboardHistoryEntries));
+  } catch (error) {
+    setDashboardHistoryStatus("Dashboard history could not be saved in this browser.", true);
+  }
+}
+
+function normalizeDashboardHistoryEntries(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const savedAt = new Date(entry?.savedAt || "");
+      if (Number.isNaN(savedAt.getTime())) {
+        return null;
+      }
+
+      const id = normalizeBusinessEnglishText(entry?.id) || `dashboard-history-${savedAt.getTime()}`;
+      return {
+        id,
+        savedAt: savedAt.toISOString(),
+        status: normalizeBusinessEnglishText(entry?.status || "Saved dashboard"),
+        total: Math.max(0, Number(entry?.total) || 0),
+        categories: normalizeDashboardHistoryCategories(entry?.categories),
+        sections: normalizeDashboardHistorySections(entry?.sections)
+      };
+    })
+    .filter(Boolean)
+    .slice(0, DASHBOARD_HISTORY_MAX_ENTRIES);
+}
+
+function normalizeDashboardHistoryCategories(value) {
+  const categories = Array.isArray(value) && value.length
+    ? value
+    : DASHBOARD_CONCEPT_CATEGORIES.map((category) => ({
+        ...category,
+        count: 0
+      }));
+
+  return categories.map((category) => ({
+    key: normalizeBusinessEnglishText(category?.key || ""),
+    label: normalizeBusinessEnglishText(category?.label || "Dashboard item"),
+    color: normalizeBusinessEnglishText(category?.color || "#64748b"),
+    count: Math.max(0, Number(category?.count) || 0)
+  }));
+}
+
+function normalizeDashboardHistorySections(value) {
+  const defaultSections = [
+    {
+      title: "Decisions",
+      emptyText: "No decisions detected yet.",
+      items: []
+    },
+    {
+      title: "Risks or Blockers",
+      emptyText: "No risks or blockers detected yet.",
+      items: []
+    },
+    {
+      title: "Important Points",
+      emptyText: "No important points detected yet.",
+      items: []
+    },
+    {
+      title: "Conclusions",
+      emptyText: "No conclusions detected yet.",
+      items: []
+    }
+  ];
+  const sections = Array.isArray(value) && value.length ? value : defaultSections;
+
+  return sections.slice(0, 4).map((section, index) => ({
+    title: normalizeBusinessEnglishText(section?.title || defaultSections[index]?.title || "Dashboard"),
+    emptyText: normalizeBusinessEnglishText(section?.emptyText || defaultSections[index]?.emptyText || "No items saved."),
+    items: normalizeBusinessEnglishList(section?.items || []).slice(0, 8)
+  }));
+}
+
+function getSelectedDashboardHistoryEntry() {
+  return dashboardHistoryEntries.find((entry) => entry.id === selectedDashboardHistoryId) || dashboardHistoryEntries[0] || null;
+}
+
+function renderDashboardHistoryList() {
+  if (!dashboardHistoryList) {
+    return;
+  }
+
+  dashboardHistoryList.textContent = "";
+
+  if (!dashboardHistoryEntries.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-table";
+    empty.textContent = "No saved dashboards yet.";
+    dashboardHistoryList.appendChild(empty);
+    setDashboardHistoryStatus("No saved dashboards yet.");
+    return;
+  }
+
+  dashboardHistoryEntries.forEach((entry) => {
+    const button = document.createElement("button");
+    button.className = "dashboard-history-row";
+    button.type = "button";
+    button.dataset.historyId = entry.id;
+    button.classList.toggle("active", entry.id === selectedDashboardHistoryId);
+
+    const date = document.createElement("span");
+    date.className = "dashboard-history-date";
+    date.textContent = formatDashboardHistoryDate(entry.savedAt);
+
+    const meta = document.createElement("span");
+    meta.className = "dashboard-history-meta";
+    meta.textContent = `${entry.total} ${entry.total === 1 ? "item" : "items"}`;
+
+    button.append(date, meta);
+    dashboardHistoryList.appendChild(button);
+  });
+
+  setDashboardHistoryStatus(`${dashboardHistoryEntries.length} saved ${dashboardHistoryEntries.length === 1 ? "dashboard" : "dashboards"}.`);
+}
+
+function renderDashboardHistoryPreview(entry) {
+  if (!dashboardHistoryPreview) {
+    return;
+  }
+
+  dashboardHistoryPreview.textContent = "";
+
+  if (!entry) {
+    const empty = document.createElement("p");
+    empty.className = "empty-table";
+    empty.textContent = "Select a saved dashboard to view it.";
+    dashboardHistoryPreview.appendChild(empty);
+    return;
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "dashboard-history-dashboard";
+
+  const header = document.createElement("div");
+  header.className = "dashboard-history-preview-header";
+  const title = document.createElement("h4");
+  title.textContent = "Saved dashboard";
+  const meta = document.createElement("p");
+  meta.textContent = `${formatDashboardHistoryDate(entry.savedAt)} · ${entry.total} ${entry.total === 1 ? "item" : "items"}`;
+  header.append(title, meta);
+
+  const breakdown = document.createElement("ul");
+  breakdown.className = "dashboard-history-breakdown";
+  entry.categories.forEach((category) => {
+    const item = document.createElement("li");
+    const swatch = document.createElement("span");
+    const label = document.createElement("span");
+    const count = document.createElement("strong");
+
+    swatch.className = "concept-legend-swatch";
+    swatch.style.backgroundColor = category.color;
+    label.textContent = category.label;
+    count.textContent = String(category.count);
+    item.append(swatch, label, count);
+    breakdown.appendChild(item);
+  });
+
+  const grid = document.createElement("div");
+  grid.className = "dashboard-history-grid";
+  entry.sections.forEach((section) => {
+    const card = document.createElement("article");
+    card.className = "dashboard-history-card";
+    const heading = document.createElement("h4");
+    heading.textContent = section.title;
+    const list = document.createElement("ul");
+    list.className = "result-list";
+    renderDashboardHistoryItems(list, section.items, section.emptyText);
+    card.append(heading, list);
+    grid.appendChild(card);
+  });
+
+  wrapper.append(header, breakdown, grid);
+  dashboardHistoryPreview.appendChild(wrapper);
+}
+
+function renderDashboardHistoryItems(list, items, emptyText) {
+  list.textContent = "";
+  const values = normalizeBusinessEnglishList(items || []);
+  if (!values.length) {
+    const empty = document.createElement("li");
+    empty.textContent = emptyText;
+    list.classList.add("empty-list");
+    list.appendChild(empty);
+    return;
+  }
+
+  list.classList.remove("empty-list");
+  values.forEach((item) => {
+    const li = document.createElement("li");
+    li.textContent = item;
+    list.appendChild(li);
+  });
+}
+
+function setDashboardHistoryStatus(message, isError = false) {
+  if (!dashboardHistoryStatus) {
+    return;
+  }
+
+  dashboardHistoryStatus.textContent = message;
+  dashboardHistoryStatus.classList.toggle("error-text", Boolean(isError));
+}
+
+function formatDashboardHistoryDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown date";
+  }
+
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+}
+
 function closeDashboardReportMenu() {
   if (dashboardReportMenu) {
     dashboardReportMenu.open = false;
@@ -10936,7 +11330,51 @@ function exportDashboardReportHtml() {
   const report = buildDashboardReportModel();
   const html = buildDashboardReportHtml(report);
 
-  downloadTextFile(html, getDashboardReportFilename("html"), "text/html;charset=utf-8");
+  if (setDashboardReportLinkHref(html)) {
+    return;
+  }
+
+  openDashboardReportWindow(html);
+}
+
+function prepareDashboardReportLink() {
+  if (!dashboardReportHtmlButton || dashboardReportHtmlButton.tagName !== "A") {
+    return false;
+  }
+
+  const report = buildDashboardReportModel();
+  return setDashboardReportLinkHref(buildDashboardReportHtml(report), {
+    silent: true
+  });
+}
+
+function setDashboardReportLinkHref(html, options = {}) {
+  if (!dashboardReportHtmlButton || dashboardReportHtmlButton.tagName !== "A") {
+    return false;
+  }
+
+  const previousUrl = dashboardReportHtmlButton.dataset.reportUrl || "";
+  if (previousUrl) {
+    URL.revokeObjectURL(previousUrl);
+  }
+
+  const reportBlob = new Blob([html], {
+    type: "text/html;charset=utf-8"
+  });
+  const reportUrl = URL.createObjectURL(reportBlob);
+  dashboardReportHtmlButton.href = reportUrl;
+  dashboardReportHtmlButton.dataset.reportUrl = reportUrl;
+  window.setTimeout(() => {
+    if (dashboardReportHtmlButton?.dataset.reportUrl === reportUrl) {
+      URL.revokeObjectURL(reportUrl);
+      delete dashboardReportHtmlButton.dataset.reportUrl;
+      dashboardReportHtmlButton.href = "about:blank";
+    }
+  }, 60000);
+  if (!options.silent) {
+    setInputStatus("Dashboard report opened in a new tab.", false);
+  }
+  return true;
 }
 
 function exportDashboardReportPdf() {
@@ -11350,9 +11788,26 @@ function buildDashboardReportHtml(report) {
 }
 
 function openDashboardReportWindow(html, options = {}) {
+  if (!options.print) {
+    const reportBlob = new Blob([html], {
+      type: "text/html;charset=utf-8"
+    });
+    const reportUrl = URL.createObjectURL(reportBlob);
+    const reportWindow = window.open(reportUrl, "_blank", "noopener,noreferrer");
+    if (!reportWindow) {
+      URL.revokeObjectURL(reportUrl);
+      setInputStatus("The browser blocked the report tab. Allow pop-ups and try again.", true);
+      return;
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(reportUrl), 60000);
+    setInputStatus("Dashboard report opened in a new tab.", false);
+    return;
+  }
+
   const reportWindow = window.open("", "_blank");
   if (!reportWindow) {
-    setInputStatus("The browser blocked the report window. Try Download HTML instead.", true);
+    setInputStatus("The browser blocked the report tab. Allow pop-ups and try again.", true);
     return;
   }
 
@@ -11360,9 +11815,7 @@ function openDashboardReportWindow(html, options = {}) {
   reportWindow.document.write(html);
   reportWindow.document.close();
 
-  if (options.print) {
-    reportWindow.setTimeout(() => reportWindow.print(), 350);
-  }
+  reportWindow.setTimeout(() => reportWindow.print(), 350);
 }
 
 function escapeHtml(value) {

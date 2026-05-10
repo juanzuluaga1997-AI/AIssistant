@@ -28,6 +28,7 @@ const NOTION_TOKEN = process.env.NOTION_TOKEN || "";
 const NOTION_DATA_SOURCE_ID = process.env.NOTION_DATA_SOURCE_ID || "";
 const NOTION_API_VERSION = process.env.NOTION_API_VERSION || "2026-03-11";
 const NOTION_API_BASE = "https://api.notion.com/v1";
+const NOTION_TASK_NOTES_EXPORT_ENABLED = false;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_EMAIL_MODEL = process.env.GEMINI_EMAIL_MODEL || "gemini-2.5-flash-lite";
 const GEMINI_EMAIL_ENABLED = /^true$/i.test(process.env.GEMINI_EMAIL_ENABLED || "false") &&
@@ -41,9 +42,13 @@ const GEMINI_EMAIL_FALLBACK_MODELS = parseGeminiModelList(
   process.env.GEMINI_EMAIL_FALLBACK_MODELS || process.env.GEMINI_DASHBOARD_FALLBACK_MODELS || "gemini-2.5-flash,gemini-2.5-pro"
 );
 const GEMINI_DASHBOARD_MODEL = process.env.GEMINI_DASHBOARD_MODEL || GEMINI_EMAIL_MODEL;
-const GEMINI_DASHBOARD_FALLBACK_MODELS = parseGeminiModelList(
-  process.env.GEMINI_DASHBOARD_FALLBACK_MODELS || "gemini-2.5-flash,gemini-2.5-pro"
+const GEMINI_DASHBOARD_FALLBACK_CHAIN_ENABLED = /^true$/i.test(
+  process.env.GEMINI_DASHBOARD_FALLBACK_CHAIN_ENABLED || "false"
 );
+const GEMINI_DASHBOARD_SAVED_FALLBACK_MODEL_CHAIN = "gemini-2.5-flash,gemini-2.0-flash-lite,gemini-2.0-flash,gemini-2.5-pro";
+const GEMINI_DASHBOARD_FALLBACK_MODELS = GEMINI_DASHBOARD_FALLBACK_CHAIN_ENABLED
+  ? parseGeminiModelList(process.env.GEMINI_DASHBOARD_FALLBACK_MODELS || GEMINI_DASHBOARD_SAVED_FALLBACK_MODEL_CHAIN)
+  : [];
 const GEMINI_DASHBOARD_ENABLED = /^true$/i.test(
   process.env.GEMINI_DASHBOARD_ENABLED ||
     process.env.GEMINI_EMAIL_INTERPRETATION_ENABLED ||
@@ -944,10 +949,10 @@ function sanitizeGeminiFailureMessage(value) {
 function sanitizeGeminiDashboardFailureMessage(value) {
   const raw = String(value || "");
   if (/429|quota|RESOURCE_EXHAUSTED/i.test(raw)) {
-    return "Gemini quota is temporarily exhausted. Dashboard fallback organizer stayed active.";
+    return "Gemini quota is temporarily exhausted. Dashboard was not updated.";
   }
   if (/api key|API_KEY|permission|unauthorized|forbidden/i.test(raw)) {
-    return "Gemini dashboard configuration needs review. Dashboard fallback organizer stayed active.";
+    return "Gemini dashboard configuration needs review. Dashboard was not updated.";
   }
   return truncateText(
     normalizeBusinessEnglishText(raw || "unknown error")
@@ -3001,7 +3006,9 @@ async function createNotionTaskPage(task, resolvedAssignee) {
     }
   };
 
-  addOptionalRichTextProperty(properties, dataSourceProperties, "Notes", task.notes);
+  if (NOTION_TASK_NOTES_EXPORT_ENABLED) {
+    addOptionalRichTextProperty(properties, dataSourceProperties, "Notes", task.notes);
+  }
   addOptionalRichTextProperty(properties, dataSourceProperties, "Voice Command", task.voiceCommand);
   addOptionalCheckboxProperty(properties, dataSourceProperties, "Created by AIssistant", task.createdByAIssistant);
   addOptionalSelectProperty(properties, dataSourceProperties, "AIssistant Flow", task.aissistantFlow);
